@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "87833672826",
+    "project_id": "instagram-like-app-coursework",
+    "storage_bucket": "instagram-like-app-coursework.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:87833672826:android:5b1dd79974106fb2a50fc3",
+        "android_client_info": {
+          "package_name": "com.example.instagramapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZywd-90qR7Pje9W81O0xuqIqUfY88eWs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:87833672826:android:bc65491af52c5c61a50fc3",
+        "android_client_info": {
+          "package_name": "com.example.instagramlikeapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZywd-90qR7Pje9W81O0xuqIqUfY88eWs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
