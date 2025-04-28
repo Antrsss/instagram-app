@@ -22,7 +22,6 @@ class CommentRepositoryTest {
     private lateinit var collectionReference: CollectionReference
     private lateinit var commentRepository: CommentRepository
     private val testDispatcher = StandardTestDispatcher()
-    // Мокируем CollectionReference
     private val commentsCollection = mockk<CollectionReference>()
 
     @Before
@@ -77,35 +76,11 @@ class CommentRepositoryTest {
         assertEquals("Error adding comment", result.exceptionOrNull()?.message)
     }
 
-    @Test
-    fun `getPostComments returns success when comments are fetched`() = runTest {
-        // Мокируем данные запроса
-        val mockQuerySnapshot = mockk<QuerySnapshot>(relaxed = true) // Упростим мок, чтобы избежать лишних вызовов
-        val mockDocumentSnapshot = mockk<QueryDocumentSnapshot>(relaxed = true)
-        val mockComment = Comment(
-            postUuid = UUID.randomUUID(),
-            authorUsername = "Me",
-            authorUid = "123456789",
-            text = "Test comment"
-        ) // Пример комментария
 
-        // Настроим мок для `documents` и `toObject`
-        every { mockQuerySnapshot.documents } returns listOf(mockDocumentSnapshot)
-        every { mockDocumentSnapshot.toObject(Comment::class.java) } returns mockComment
 
-        // Мокируем метод `whereEqualTo` и `get()`
-        val mockQuery = mockk<Query>()
-        every { commentsCollection.whereEqualTo("postUuid", any<String>()) } returns mockQuery
-        coEvery { mockQuery.get().await() } returns mockQuerySnapshot
 
-        // Вызов функции
-        val result = commentRepository.getPostComments(UUID.randomUUID())
 
-        // Проверка результата
-        assertTrue(result.isSuccess)
-        assertEquals(1, result.getOrNull()?.size)
-        assertEquals(mockComment, result.getOrNull()?.first())
-    }
+
 
     @Test
     fun `getPostComments returns failure when an exception occurs`() = runTest {

@@ -1,7 +1,9 @@
 package com.example.instagramapp
 
 import android.graphics.Bitmap
+import com.cloudinary.Cloudinary
 import com.example.instagramapp.models.Post
+import com.example.instagramapp.repos.CommentRepository
 import com.example.instagramapp.repos.PostRepository
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
@@ -30,14 +32,20 @@ import java.util.UUID
 class PostRepositoryTest {
 
     private lateinit var firestore: FirebaseFirestore
+    private lateinit var collectionReference: CollectionReference
     private lateinit var postRepository: PostRepository
+    private lateinit var cloudinary: Cloudinary
     private val testDispatcher = StandardTestDispatcher()
+    private val postsCollection = mockk<CollectionReference>()
 
     @Before
-    fun setup() {
+    fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        firestore = mockk(relaxed = true)
-        postRepository = spyk(PostRepository(firestore))
+        firestore = mockk()
+        collectionReference = mockk()
+        every { firestore.collection("posts") } returns collectionReference
+        cloudinary = mockk()
+        postRepository = PostRepository(firestore)
     }
 
     @After
