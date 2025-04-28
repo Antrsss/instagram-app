@@ -4,7 +4,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.cloudinary.Cloudinary
 import com.cloudinary.utils.ObjectUtils
 import com.example.instagramapp.models.Post
-import com.google.firebase.firestore.FieldValue
 import java.util.UUID
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -49,7 +48,7 @@ class PostRepository @Inject constructor(
             postRef.set(updatedPost).await()
         }
     }
-    
+
     suspend fun saveToBookmarks(postUuid: UUID, userUid: String) {
 
     }
