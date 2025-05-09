@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "InstagramApp"
 include(":app")
+include(":serialization-library")

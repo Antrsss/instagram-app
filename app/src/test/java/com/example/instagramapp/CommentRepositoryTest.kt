@@ -76,21 +76,12 @@ class CommentRepositoryTest {
         assertEquals("Error adding comment", result.exceptionOrNull()?.message)
     }
 
-
-
-
-
-
-
     @Test
     fun `getPostComments returns failure when an exception occurs`() = runTest {
-        // Мокируем выброс исключения при получении данных
         every { commentsCollection.whereEqualTo("postUuid", any<String>()) } throws RuntimeException("Error")
 
-        // Вызов функции
         val result = commentRepository.getPostComments(UUID.randomUUID())
 
-        // Проверка результата
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull() is RuntimeException)
     }
@@ -126,25 +117,16 @@ class CommentRepositoryTest {
         val commentsCollection = mockk<CollectionReference>()
         val commentRepository = mockk<CommentRepository>()
 
-        // Мокаем вызов collectionReference.document, чтобы он возвращал documentRef
         every { commentsCollection.document(commentId) } returns documentRef
-
-        // Мокаем обновление поля "likes" на documentRef
         every {
             documentRef.update("likes", FieldValue.arrayUnion("user123"))
-        } returns Tasks.forResult(null)  // Успешное обновление
+        } returns Tasks.forResult(null)
 
-        // Мокаем вызов suspend функции likeComment, используя coEvery
         coEvery { commentRepository.likeComment(commentId, "user123") } returns Result.success(Unit)
 
-        // Выполняем тестируемую функцию
         val result = commentRepository.likeComment(commentId, "user123")
 
-        // Логируем результат для диагностики
-        println("likeComment result: $result")
-
-        // Проверяем успешный результат
-        assertTrue(result.isSuccess)  // Проверяем, что результат успешный
+        assertTrue(result.isSuccess)
     }
 
     @Test
@@ -154,24 +136,15 @@ class CommentRepositoryTest {
         val commentsCollection = mockk<CollectionReference>()
         val commentRepository = mockk<CommentRepository>()
 
-        // Мокаем вызов collectionReference.document, чтобы он возвращал documentRef
         every { commentsCollection.document(commentId) } returns documentRef
-
-        // Мокаем обновление поля "likes" на documentRef с выбрасыванием исключения
         every {
             documentRef.update("likes", FieldValue.arrayUnion("user123"))
         } throws RuntimeException("Like failed")
-
-        // Мокаем вызов suspend функции likeComment
         coEvery { commentRepository.likeComment(commentId, "user123") } returns Result.failure(RuntimeException("Like failed"))
 
-        // Выполняем тестируемую функцию
         val result = commentRepository.likeComment(commentId, "user123")
 
-        // Проверяем, что результат содержит ошибку
         assertTrue(result.isFailure)
-
-        // Проверяем сообщение исключения
         assertEquals("Like failed", result.exceptionOrNull()?.message)
     }
 }

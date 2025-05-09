@@ -1,73 +1,89 @@
 package com.example.instagramapp.repos
 
-import com.google.firebase.firestore.CollectionReference
-import com.google.firebase.firestore.FirebaseFirestore
-import com.cloudinary.Cloudinary
 import com.example.instagramapp.models.Story
+import com.example.instagramapp.services.CloudinaryService
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.util.*
 import javax.inject.Inject
-import kotlinx.coroutines.tasks.await // Убедись, что этот импорт есть в файле
 
 class StoryRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val cloudinary: Cloudinary // Инстанс Cloudinary
+    private val cloudinaryService: CloudinaryService
 ) {
+    private val storiesCollection = firestore.collection("stories")
 
-    // Коллекция историй в Firestore
-    private val storiesCollection: CollectionReference = firestore.collection("stories")
-
-    // Создание новой истории
-    /*suspend fun createStory(story: Story) {
-        // Загружаем изображение на Cloudinary
-        val photoUrl = uploadToCloudinary(story.photoUrl)
-
-        // Создаем объект истории с обновленным URL
-        val newStory = story.copy(photoUrl = photoUrl)
-
-        // Добавляем историю в Firestore
-        storiesCollection.document(newStory.storyUuid.toString()).set(newStory).await()
-    }*/
-
-    // Получение активных историй пользователя
-    suspend fun getActiveStories(userUid: String): List<Story> {
-        return storiesCollection
-            .whereEqualTo("authorUid", userUid)
-            .whereEqualTo("isVisible", true)
-            .whereGreaterThan("expirationTime", Date()) // Получаем истории, которые еще не истекли
-            .get()
-            .await()
-            .toObjects(Story::class.java)
-    }
-
-    // Получение архивных историй пользователя
-    suspend fun getArchivedStories(userUid: String): List<Story> {
-        return storiesCollection
-            .whereEqualTo("authorUid", userUid)
-            .whereEqualTo("isVisible", false)
-            .get()
-            .await()
-            .toObjects(Story::class.java)
-    }
-
-    // Удаление истории
-    suspend fun deleteStory(storyUuid: UUID) {
-        storiesCollection.document(storyUuid.toString()).delete().await()
-    }
-
-    // Лайк истории
-    suspend fun likeStory(storyUuid: UUID) {
-        val docRef = storiesCollection.document(storyUuid.toString())
-        val story = docRef.get().await().toObject(Story::class.java)
-        if (story != null) {
-            val updatedStory = story.copy(likes = story.likes + 1) // Увеличиваем лайки
-            docRef.set(updatedStory).await()
+    suspend fun createStory(story: Story) {
+        try {
+            storiesCollection
+                .document(story.storyUuid.toString())
+                .set(story)
+                .await()
+        } catch (e: Exception) {
+            throw Exception("Failed to create story", e)
         }
     }
 
-    // Метод загрузки фото на Cloudinary
-    /*private suspend fun uploadToCloudinary(photoUrl: String): String {
-        val response = cloudinary.uploader().upload(photoUrl, ObjectUtils.emptyMap()).await()
-        return response["url"] as String
-    }*/
+    suspend fun getActiveStories(userUid: String): List<Story> {
+        return try {
+            val now = Date()
+            storiesCollection
+                .whereEqualTo("authorUid", userUid)
+                .whereEqualTo("isVisible", true)
+                .whereGreaterThan("expirationTime", now)
+                .get()
+                .await()
+                .toObjects(Story::class.java)
+        } catch (e: Exception) {
+            throw Exception("Failed to get active stories", e)
+        }
+    }
+
+    suspend fun getArchivedStories(userUid: String): List<Story> {
+        return try {
+            val now = Date()
+            storiesCollection
+                .whereEqualTo("authorUid", userUid)
+                .whereLessThan("expirationTime", now)
+                .get()
+                .await()
+                .toObjects(Story::class.java)
+        } catch (e: Exception) {
+            throw Exception("Failed to get archived stories", e)
+        }
+    }
+
+    suspend fun deleteStory(storyUuid: UUID) {
+        try {
+            val document = storiesCollection
+                .document(storyUuid.toString())
+                .get()
+                .await()
+
+            val story = document.toObject(Story::class.java)
+                ?: throw Exception("Story not found")
+
+            cloudinaryService.deleteImage(story.photoUrl)
+
+            storiesCollection
+                .document(storyUuid.toString())
+                .delete()
+                .await()
+        } catch (e: Exception) {
+            throw Exception("Failed to delete story", e)
+        }
+    }
+
+    suspend fun likeStory(storyUuid: UUID) {
+        try {
+            val storyRef = storiesCollection.document(storyUuid.toString())
+            firestore.runTransaction { transaction ->
+                val snapshot = transaction.get(storyRef)
+                val currentLikes = snapshot.getLong("likes") ?: 0
+                transaction.update(storyRef, "likes", currentLikes + 1)
+            }.await()
+        } catch (e: Exception) {
+            throw Exception("Failed to like story", e)
+        }
+    }
 }

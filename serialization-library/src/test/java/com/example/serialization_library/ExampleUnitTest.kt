@@ -1,4 +1,4 @@
-package com.example.instagramapp
+package com.example.serialization_library
 
 import org.junit.Test
 

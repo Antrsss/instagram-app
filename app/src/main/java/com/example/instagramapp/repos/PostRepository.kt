@@ -1,69 +1,199 @@
 package com.example.instagramapp.repos
 
+import com.example.instagramapp.models.Comment
 import com.google.firebase.firestore.FirebaseFirestore
-import com.cloudinary.Cloudinary
-import com.cloudinary.utils.ObjectUtils
 import com.example.instagramapp.models.Post
+import com.example.instagramapp.services.CloudinaryService
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.toObject
+import kotlinx.coroutines.Dispatchers
 import java.util.UUID
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import java.util.Date
 import javax.inject.Inject
 
 class PostRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val cloudinary: Cloudinary
+    private val cloudinaryService: CloudinaryService
 ) {
     private val postsCollection = firestore.collection("posts")
+    private val commentsCollection = firestore.collection("comments")
+    private val bookmarksCollection = firestore.collection("bookmarks")
+    private val likesCollection = firestore.collection("likes")
 
-    suspend fun createPost(post: Post) {
-        val imageUrls = post.imageUrls.map { imageUrl ->
-            uploadImageToCloudinary(imageUrl)
+    suspend fun createPost(post: Post): Result<Post> = withContext(Dispatchers.IO) {
+        try {
+            val uploadedImageUrls = post.imageUrls.map { url ->
+                cloudinaryService.uploadImage(url)
+            }
+
+            val postToCreate = post.copy(
+                imageUrls = uploadedImageUrls,
+                postUuid = UUID.randomUUID(),
+                creationTime = Date()
+            )
+
+            postsCollection.document(postToCreate.postUuid.toString())
+                .set(postToCreate)
+                .await()
+
+            Result.success(postToCreate)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
-
-        val postData = post.copy(imageUrls = imageUrls)
-        postsCollection.document(post.postUuid.toString()).set(postData).await()
     }
 
-    suspend fun getUserPosts(userUid: String): List<Post> {
-        val snapshot = postsCollection
-            .whereEqualTo("authorUid", userUid)
+    suspend fun getPost(postUuid: UUID): Result<Post> = withContext(Dispatchers.IO) {
+        try {
+            val snapshot = postsCollection.document(postUuid.toString()).get().await()
+            val post = snapshot.toObject<Post>()
+                ?: throw Exception("Post not found")
+
+            Result.success(post)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getUserPosts(userUid: String): Result<List<Post>> = withContext(Dispatchers.IO) {
+        try {
+            val snapshot = postsCollection
+                .whereEqualTo("authorUid", userUid)
+                .orderBy("creationTime", Query.Direction.DESCENDING)
+                .get()
+                .await()
+
+            val posts = snapshot.documents.mapNotNull { it.toObject<Post>() }
+            Result.success(posts)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deletePost(postUuid: UUID): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val post = getPost(postUuid).getOrThrow()
+
+            post.imageUrls.forEach { imageUrl ->
+                cloudinaryService.deleteImage(imageUrl)
+            }
+
+            postsCollection.document(postUuid.toString()).delete().await()
+
+            deletePostRelatedData(postUuid)
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    public suspend fun deletePostRelatedData(postUuid: UUID) {
+        likesCollection.whereEqualTo("postUuid", postUuid.toString())
             .get()
             .await()
+            .documents
+            .forEach { it.reference.delete().await() }
 
-        return snapshot.documents.map { doc ->
-            doc.toObject(Post::class.java) ?: throw Exception("Post not found")
+        commentsCollection.whereEqualTo("postUuid", postUuid.toString())
+            .get()
+            .await()
+            .documents
+            .forEach { it.reference.delete().await() }
+
+        bookmarksCollection.whereEqualTo("postUuid", postUuid.toString())
+            .get()
+            .await()
+            .documents
+            .forEach { it.reference.delete().await() }
+    }
+
+    suspend fun likePost(postUuid: UUID, userId: String): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val postRef = postsCollection.document(postUuid.toString())
+            val likeDocRef = likesCollection.document("${postUuid}_$userId")
+
+            firestore.runTransaction { transaction ->
+                val postSnapshot = transaction.get(postRef)
+                val post = postSnapshot.toObject<Post>() ?: throw Exception("Post not found")
+
+                val likeSnapshot = transaction.get(likeDocRef)
+                val newLikesCount = if (likeSnapshot.exists()) {
+                    transaction.delete(likeDocRef)
+                    post.likes - 1
+                } else {
+                    transaction.set(likeDocRef, mapOf(
+                        "postUuid" to postUuid.toString(),
+                        "userId" to userId,
+                        "timestamp" to FieldValue.serverTimestamp()
+                    ))
+                    post.likes + 1
+                }
+
+                transaction.update(postRef, "likes", newLikesCount)
+                newLikesCount
+            }.await().let { Result.success(it) }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
-    suspend fun deletePost(postUuid: UUID) {
-        postsCollection.document(postUuid.toString()).delete().await()
-    }
+    suspend fun saveToBookmarks(postUuid: UUID, userId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            bookmarksCollection.document("${postUuid}_$userId")
+                .set(mapOf(
+                    "postUuid" to postUuid.toString(),
+                    "userId" to userId,
+                    "timestamp" to FieldValue.serverTimestamp()
+                ))
+                .await()
 
-    suspend fun likePost(postUuid: UUID) {
-        val postRef = postsCollection.document(postUuid.toString())
-        val postSnapshot = postRef.get().await()
-        val post = postSnapshot.toObject(Post::class.java)
-
-        post?.let {
-            val updatedPost = it.copy(likes = it.likes + 1)
-            postRef.set(updatedPost).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
-    suspend fun saveToBookmarks(postUuid: UUID, userUid: String) {
+    suspend fun removeFromBookmarks(postUuid: UUID, userId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            bookmarksCollection.document("${postUuid}_$userId")
+                .delete()
+                .await()
 
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
-    suspend fun commentPost(postUuid: UUID, comment: String) {
-        val commentData = mapOf(
-            "comment" to comment,
-            "postUuid" to postUuid.toString(),
-            "timestamp" to System.currentTimeMillis()
-        )
-        firestore.collection("comments").add(commentData).await()
+    suspend fun addComment(postUuid: UUID, comment: Comment): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            commentsCollection.add(comment).await()
+
+            postsCollection.document(postUuid.toString())
+                .update("commentsCount", FieldValue.increment(1))
+                .await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
-    private fun uploadImageToCloudinary(imageUrl: String): String {
-        val uploadResult = cloudinary.uploader().upload(imageUrl, ObjectUtils.emptyMap())
-        return uploadResult["url"] as String
+    suspend fun getPostComments(postUuid: UUID): Result<List<Comment>> = withContext(Dispatchers.IO) {
+        try {
+            val snapshot = commentsCollection
+                .whereEqualTo("postUuid", postUuid.toString())
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .get()
+                .await()
+
+            val comments = snapshot.documents.mapNotNull { it.toObject<Comment>() }
+            Result.success(comments)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

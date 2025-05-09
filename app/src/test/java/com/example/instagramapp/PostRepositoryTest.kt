@@ -3,6 +3,7 @@ package com.example.instagramapp
 import com.cloudinary.Cloudinary
 import com.example.instagramapp.models.Post
 import com.example.instagramapp.repos.PostRepository
+import com.example.instagramapp.services.CloudinaryService
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.firestore.*
@@ -13,12 +14,17 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -35,23 +41,37 @@ class PostRepositoryTest {
     private lateinit var documentReference: DocumentReference
     private lateinit var cloudinary: Cloudinary
     private lateinit var postRepository: PostRepository
+    private lateinit var cloudinaryService: CloudinaryService
+
     private lateinit var postsCollection: CollectionReference
+    private lateinit var likesCollection: CollectionReference
+    private lateinit var commentsCollection: CollectionReference
+    private lateinit var bookmarksCollection: CollectionReference
 
     private val testDispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+
         firestore = mockk()
+        cloudinaryService = mockk()
         collectionReference = mockk()
         postsCollection = mockk()
         documentReference = mockk()
         cloudinary = mockk()
 
-        every { firestore.collection("posts") } returns collectionReference
-        every { collectionReference.document(any()) } returns documentReference
 
-        postRepository = PostRepository(firestore, cloudinary)
+        likesCollection = mockk()
+        commentsCollection = mockk()
+        bookmarksCollection = mockk()
+
+        every { firestore.collection("posts") } returns collectionReference
+        every { firestore.collection("comments") } returns commentsCollection // Здесь меняем на commentsCollection
+        every { firestore.collection("bookmarks") } returns bookmarksCollection // Здесь меняем на bookmarksCollection
+        every { firestore.collection("likes") } returns likesCollection // Здесь меняем на likesCollection
+        every { collectionReference.document(any()) } returns documentReference
+        postRepository = PostRepository(firestore, cloudinaryService)
     }
 
     @After
@@ -60,131 +80,139 @@ class PostRepositoryTest {
     }
 
     @Test
-    fun `createPost should upload images to Cloudinary and save post to Firestore`() = runTest {
-        val post = Post(
-            authorUid = "user1",
+    fun `createPost should upload images, generate UUID and save post`() = runTest {
+        val originalPost = Post(
+            authorUid = "user123",
+            creationTime = Date(0),
+            description = "Test post",
+            imageUrls = listOf("local1", "local2"),
+            likes = 0,
+            postUuid = UUID(0, 0)
+        )
+
+        val task = mockk<Task<Void>>().apply {
+            coEvery { isComplete } returns true
+            coEvery { isCanceled } returns false
+            coEvery { isSuccessful } returns true
+            coEvery { exception } returns null
+            coEvery { result } returns null
+        }
+
+        coEvery { documentReference.set(any()) } returns task
+        coEvery { cloudinaryService.uploadImage("local1") } returns "cloud1"
+        coEvery { cloudinaryService.uploadImage("local2") } returns "cloud2"
+
+        val result = postRepository.createPost(originalPost)
+
+        assertTrue(result.isSuccess)
+
+        val createdPost = result.getOrNull()!!
+        assertNotEquals(UUID(0, 0), createdPost.postUuid)
+        assertEquals(listOf("cloud1", "cloud2"), createdPost.imageUrls)
+
+        coVerify(exactly = 1) {
+            documentReference.set(match { it as Post == createdPost })
+        }
+    }
+
+    @Test
+    fun `createPost should return failure when Firestore save fails`() = runTest {
+        val originalPost = Post(
+            authorUid = "user123",
+            creationTime = Date(0),
+            description = "Test post",
+            imageUrls = emptyList(),
+            likes = 0,
+            postUuid = UUID(0, 0)
+        )
+
+        val task = mockk<Task<Void>>().apply {
+            coEvery { isComplete } returns true
+            coEvery { isSuccessful } returns false
+            coEvery { exception } returns Exception("Firestore error")
+        }
+
+        coEvery { documentReference.set(any()) } returns task
+        coEvery { cloudinaryService.uploadImage(any()) } returns "cloud1"
+
+        val result = postRepository.createPost(originalPost)
+
+        assertTrue(result.isFailure)
+        assertEquals("Firestore error", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun `createPost should return failure when image upload fails`() = runTest {
+        val originalPost = Post(
+            authorUid = "user123",
             creationTime = Date(),
-            description = "Test description",
-            imageUrls = listOf("image1.jpg", "image2.jpg"),
+            description = "Test post",
+            imageUrls = listOf("local1"),
             likes = 0
         )
 
-        val uploadedImageUrl = "http://cloudinary.com/uploaded_image.jpg"
+        val expectedException = Exception("Upload failed")
+        coEvery { cloudinaryService.uploadImage(any()) } throws expectedException
 
-        every { cloudinary.uploader().upload(any(), any()) } returns mapOf("url" to uploadedImageUrl)
+        val result = postRepository.createPost(originalPost)
 
-        val mockTask: Task<Void> = mockk {
-            every { isComplete } returns true
-            every { isSuccessful } returns true
-            every { isCanceled } returns false
-            every { exception } returns null
-            every { result } returns null
-            every { getResult() } returns null
-        }
-        coEvery { documentReference.set(any()) } returns mockTask
+        assertTrue(result.isFailure)
+        assertEquals(expectedException, result.exceptionOrNull())
 
-        postRepository.createPost(post)
-
-        verify(exactly = 2) { cloudinary.uploader().upload(any(), any()) }
-        coVerify { collectionReference.document(post.postUuid.toString()) }
-        coVerify { documentReference.set(match { savedPost ->
-            (savedPost as Post).imageUrls.all { it == uploadedImageUrl }
-        }) }
+        coVerify(exactly = 0) { documentReference.set(any()) }
     }
 
     @Test
-    fun `getUserPosts should return posts for specific user`() = runTest {
-        // Given
-        val userUid = "user123"
-        val expectedPosts = listOf(
-            Post(
-                authorUid = userUid,
-                creationTime = Date(),
-                description = "Post 1",
-                imageUrls = listOf("url1"),
-                likes = 5
-            ),
-            Post(
-                authorUid = userUid,
-                creationTime = Date(),
-                description = "Post 2",
-                imageUrls = listOf("url2"),
-                likes = 10
-            )
+    fun `getPost should return success with post when document exists`() = runTest {
+        val postUuid = UUID.randomUUID()
+        val expectedPost = Post(
+            authorUid = "user123",
+            creationTime = Date(),
+            description = "Test post",
+            imageUrls = listOf("url1", "url2"),
+            likes = 5,
+            postUuid = postUuid
         )
 
-        val mockQuerySnapshot: QuerySnapshot = mockk {
-            every { documents } returns expectedPosts.map { post ->
-                mockk<DocumentSnapshot> {
-                    every { toObject(Post::class.java) } returns post
-                }
-            }
+        val mockSnapshot = mockk<DocumentSnapshot> {
+            coEvery { toObject<Post>() } returns expectedPost
         }
 
-        val mockTask: Task<QuerySnapshot> = mockk {
-            every { isComplete } returns true
-            every { isSuccessful } returns true
-            every { isCanceled } returns false
-            every { exception } returns null
-            every { result } returns mockQuerySnapshot
-            every { getResult() } returns mockQuerySnapshot
-        }
-        val mockQuery: Query = mockk {
-            every { get() } returns mockTask
-        }
+        coEvery { documentReference.get() } returns Tasks.forResult(mockSnapshot)
 
-        val mockPostsCollection: CollectionReference = mockk {
-            every { whereEqualTo("authorUid", userUid) } returns mockQuery
-        }
-        val mockFirestore: FirebaseFirestore = mockk {
-            every { collection("posts") } returns mockPostsCollection
-        }
+        val result = postRepository.getPost(postUuid)
 
-        postRepository = PostRepository(mockFirestore, cloudinary)
-
-        val result = postRepository.getUserPosts(userUid)
-
-        assertEquals(expectedPosts, result)
-        verify {
-            mockPostsCollection.whereEqualTo("authorUid", userUid)
-            mockQuery.get()
-        }
+        assertTrue(result.isSuccess)
+        assertEquals(expectedPost, result.getOrNull())
     }
 
     @Test
-    fun `getUserPosts should return empty list when no posts found`() = runTest {
-        // Given
-        val userUid = "user123"
-        val emptyQuerySnapshot: QuerySnapshot = mockk {
-            every { documents } returns emptyList()
+    fun `getPost should return failure when document does not exist`() = runTest {
+        val postUuid = UUID.randomUUID()
+
+        val mockSnapshot = mockk<DocumentSnapshot> {
+            coEvery { toObject<Post>() } returns null
         }
 
-        val mockTask: Task<QuerySnapshot> = mockk {
-            every { isComplete } returns true
-            every { isSuccessful } returns true
-            every { isCanceled } returns false
-            every { exception } returns null
-            every { result } returns emptyQuerySnapshot
-            every { getResult() } returns emptyQuerySnapshot
-        }
-        val mockQuery: Query = mockk {
-            every { get() } returns mockTask
-        }
+        coEvery { documentReference.get() } returns Tasks.forResult(mockSnapshot)
 
-        val mockPostsCollection: CollectionReference = mockk {
-            every { whereEqualTo("authorUid", userUid) } returns mockQuery
-        }
-        val mockFirestore: FirebaseFirestore = mockk {
-            every { collection("posts") } returns mockPostsCollection
-        }
+        val result = postRepository.getPost(postUuid)
 
-        postRepository = PostRepository(mockFirestore, cloudinary)
+        assertTrue(result.isFailure)
+        assertEquals("Post not found", result.exceptionOrNull()?.message)
+    }
 
-        // When
-        val result = postRepository.getUserPosts(userUid)
+    @Test
+    fun `getPost should return failure when Firestore throws exception`() = runTest {
+        val postUuid = UUID.randomUUID()
+        val expectedException = Exception("Firestore error")
 
-        // Then
-        assertTrue(result.isEmpty())
+        coEvery { documentReference.get() } throws expectedException
+
+        val result = postRepository.getPost(postUuid)
+
+        assertTrue(result.isFailure)
+        assertEquals(expectedException, result.exceptionOrNull())
     }
 
     @Test
@@ -210,94 +238,142 @@ class PostRepositoryTest {
     }
 
     @Test
-    fun `deletePost should delete document with specified UUID`() = runTest {
+    fun `deletePost should delete post and related data successfully`() = runTest {
         val postUuid = UUID.randomUUID()
-
-        val mockTask: Task<Void> = mockk {
-            every { isComplete } returns true
-            every { isSuccessful } returns true
-            every { isCanceled } returns false
-            every { exception } returns null
-            every { result } returns null
-            every { getResult() } returns null
-        }
-
-        val mockDocumentReference: DocumentReference = mockk {
-            every { delete() } returns mockTask
-        }
-
-        val mockPostsCollection: CollectionReference = mockk {
-            every { document(postUuid.toString()) } returns mockDocumentReference
-        }
-
-        val mockFirestore: FirebaseFirestore = mockk {
-            every { collection("posts") } returns mockPostsCollection
-        }
-
-        postRepository = PostRepository(mockFirestore, cloudinary)
-        postRepository.deletePost(postUuid)
-
-        verify {
-            mockFirestore.collection("posts")
-            mockPostsCollection.document(postUuid.toString())
-            mockDocumentReference.delete()
-        }
-    }
-
-    @Test
-    fun `likePost should increment likes count by 1`() = runTest {
-        val postUuid = UUID.randomUUID()
-        val originalPost = Post(
+        val post = Post(
+            postUuid = postUuid,
             authorUid = "user123",
+            imageUrls = listOf("url1", "url2"),
             creationTime = Date(),
             description = "Test post",
-            imageUrls = listOf("url1"),
             likes = 5
         )
 
-        val mockDocumentSnapshot: DocumentSnapshot = mockk {
-            every { toObject(Post::class.java) } returns originalPost
+        every { firestore.collection("posts") } returns postsCollection
+        every { postsCollection.document(postUuid.toString()) } returns documentReference
+
+        val mockSnapshot = mockk<DocumentSnapshot> {
+            coEvery { toObject<Post>() } returns post
+        }
+        coEvery { documentReference.get() } returns Tasks.forResult(mockSnapshot)
+        coEvery { cloudinaryService.deleteImage(any()) } returns true
+        coEvery { documentReference.delete() } returns Tasks.forResult(null)
+
+        val emptyQuery = mockk<Query>()
+        val emptySnapshot = mockk<QuerySnapshot> {
+            coEvery { documents } returns emptyList()
         }
 
-        val mockGetTask: Task<DocumentSnapshot> = mockk {
-            every { isComplete } returns true
-            every { isSuccessful } returns true
-            every { isCanceled } returns false
-            every { exception } returns null
-            every { result } returns mockDocumentSnapshot
-            every { getResult() } returns mockDocumentSnapshot
-        }
+        coEvery { likesCollection.whereEqualTo("postUuid", postUuid.toString()) } returns emptyQuery
+        coEvery { commentsCollection.whereEqualTo("postUuid", postUuid.toString()) } returns emptyQuery
+        coEvery { bookmarksCollection.whereEqualTo("postUuid", postUuid.toString()) } returns emptyQuery
 
-        val mockSetTask: Task<Void> = mockk {
-            every { isComplete } returns true
-            every { isSuccessful } returns true
-            every { isCanceled } returns false
-            every { exception } returns null
-            every { result } returns null
-            every { getResult() } returns null
-        }
+        coEvery { emptyQuery.get() } returns Tasks.forResult(emptySnapshot)
 
-        val mockDocumentReference: DocumentReference = mockk {
-            every { get() } returns mockGetTask
-            every { set(any()) } returns mockSetTask
-        }
+        val result = postRepository.deletePost(postUuid)
 
-        val mockPostsCollection: CollectionReference = mockk {
-            every { document(postUuid.toString()) } returns mockDocumentReference
-        }
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 2) { cloudinaryService.deleteImage(any()) }
+        coVerify(exactly = 1) { documentReference.delete() }
+    }
 
-        val mockFirestore: FirebaseFirestore = mockk {
-            every { collection("posts") } returns mockPostsCollection
-        }
+    @Test
+    fun `deletePost should return failure when image deletion fails`() = runTest {
+        val postUuid = UUID.randomUUID()
+        val post = Post(
+            postUuid = postUuid,
+            authorUid = "user123",
+            imageUrls = listOf("url1"),
+            creationTime = Date(),
+            description = "Test post",
+            likes = 5
+        )
+        val expectedException = Exception("Image deletion failed")
 
-        postRepository = PostRepository(mockFirestore, cloudinary)
-        postRepository.likePost(postUuid)
+        every { firestore.collection("posts") } returns postsCollection
+        every { postsCollection.document(postUuid.toString()) } returns documentReference
 
-        verify {
-            mockDocumentReference.get()
-            mockDocumentReference.set(match {
-                (it as Post).likes == originalPost.likes + 1
-            })
+        val mockSnapshot = mockk<DocumentSnapshot> {
+            coEvery { toObject<Post>() } returns post
         }
+        coEvery { documentReference.get() } returns Tasks.forResult(mockSnapshot)
+        coEvery { cloudinaryService.deleteImage(any()) } throws expectedException
+
+        val result = postRepository.deletePost(postUuid)
+
+        assertTrue(result.isFailure)
+        assertEquals(expectedException, result.exceptionOrNull())
+        coVerify(exactly = 0) { documentReference.delete() }
+    }
+
+    @Test
+    fun `deletePost should return failure when post deletion fails`() = runTest {
+        val postUuid = UUID.randomUUID()
+        val post = Post(
+            postUuid = postUuid,
+            authorUid = "user123",
+            imageUrls = listOf("url1"),
+            creationTime = Date(),
+            description = "Test post",
+            likes = 5
+        )
+        val expectedException = Exception("Post deletion failed")
+
+        every { firestore.collection("posts") } returns postsCollection
+        every { postsCollection.document(postUuid.toString()) } returns documentReference
+
+        val mockSnapshot = mockk<DocumentSnapshot> {
+            coEvery { toObject<Post>() } returns post
+        }
+        coEvery { documentReference.get() } returns Tasks.forResult(mockSnapshot)
+        coEvery { cloudinaryService.deleteImage(any()) } returns true
+
+        val failedTask = Tasks.forException<Void>(expectedException)
+        coEvery { documentReference.delete() } returns failedTask
+
+        val emptyQuery = mockk<Query>()
+        val emptySnapshot = mockk<QuerySnapshot> { coEvery { documents } returns emptyList() }
+        coEvery { likesCollection.whereEqualTo("postUuid", postUuid.toString()) } returns emptyQuery
+        coEvery { commentsCollection.whereEqualTo("postUuid", postUuid.toString()) } returns emptyQuery
+        coEvery { bookmarksCollection.whereEqualTo("postUuid", postUuid.toString()) } returns emptyQuery
+        coEvery { emptyQuery.get() } returns Tasks.forResult(emptySnapshot)
+
+        val result = postRepository.deletePost(postUuid)
+
+        assertTrue(result.isFailure)
+        assertEquals(expectedException, result.exceptionOrNull())
+        coVerify(exactly = 1) { cloudinaryService.deleteImage(any()) }
+        coVerify(exactly = 1) { documentReference.delete() }
+    }
+
+    @Test
+    fun `deletePostRelatedData should delete all related data`() = runTest {
+        val postUuid = UUID.randomUUID()
+
+        val likeDocRef = mockk<DocumentReference>()
+        val commentDocRef = mockk<DocumentReference>()
+        val bookmarkDocRef = mockk<DocumentReference>()
+
+        val likeDoc = mockk<QueryDocumentSnapshot> { every { reference } returns likeDocRef }
+        val commentDoc = mockk<QueryDocumentSnapshot> { every { reference } returns commentDocRef }
+        val bookmarkDoc = mockk<QueryDocumentSnapshot> { every { reference } returns bookmarkDocRef }
+
+        val likesQuerySnapshot = mockk<QuerySnapshot> { coEvery { documents } returns listOf(likeDoc) }
+        val commentsQuerySnapshot = mockk<QuerySnapshot> { coEvery { documents } returns listOf(commentDoc) }
+        val bookmarksQuerySnapshot = mockk<QuerySnapshot> { coEvery { documents } returns listOf(bookmarkDoc) }
+
+        coEvery { likesCollection.whereEqualTo("postUuid", postUuid.toString()).get() } returns Tasks.forResult(likesQuerySnapshot)
+        coEvery { commentsCollection.whereEqualTo("postUuid", postUuid.toString()).get() } returns Tasks.forResult(commentsQuerySnapshot)
+        coEvery { bookmarksCollection.whereEqualTo("postUuid", postUuid.toString()).get() } returns Tasks.forResult(bookmarksQuerySnapshot)
+
+        coEvery { likeDocRef.delete() } returns Tasks.forResult(null)
+        coEvery { commentDocRef.delete() } returns Tasks.forResult(null)
+        coEvery { bookmarkDocRef.delete() } returns Tasks.forResult(null)
+
+        postRepository.deletePostRelatedData(postUuid)
+
+        coVerify(exactly = 1) { likeDocRef.delete() }
+        coVerify(exactly = 1) { commentDocRef.delete() }
+        coVerify(exactly = 1) { bookmarkDocRef.delete() }
     }
 }

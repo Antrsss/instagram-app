@@ -54,7 +54,7 @@ android {
 }
 
 dependencies {
-    // Firebase (совместимо с Kotlin 1.9.0)
+    // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.7.3"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
@@ -88,6 +88,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")

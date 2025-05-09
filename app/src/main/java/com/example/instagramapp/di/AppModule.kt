@@ -1,10 +1,11 @@
 package com.example.instagramapp.di
 
-import android.content.Context
-import com.cloudinary.Cloudinary
-import com.cloudinary.android.MediaManager
+import com.example.instagramapp.repos.CommentRepository
+import com.example.instagramapp.repos.PostRepository
 import com.example.instagramapp.repos.ProfileRepository
+import com.example.instagramapp.repos.StoryRepository
 import com.example.instagramapp.repos.UserRepository
+import com.example.instagramapp.services.CloudinaryService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -24,31 +25,35 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideUserRepository(firebaseAuth: FirebaseAuth): UserRepository {
-        return UserRepository(firebaseAuth)
-    }
-
-    @Provides
-    @Singleton
     fun provideFirestore() : FirebaseFirestore = FirebaseFirestore.getInstance()
 
     @Provides
     @Singleton
-    fun provideProfileRepository(firestore: FirebaseFirestore): ProfileRepository {
-        return ProfileRepository(firestore)
+    fun provideCommentRepository(firestore: FirebaseFirestore): CommentRepository {
+        return CommentRepository(firestore)
     }
 
     @Provides
     @Singleton
-    fun provideCloudinary(context: Context): Cloudinary {
-        val config = mapOf(
-            "cloud_name" to "dgkym15ev",
-            "api_key" to "333425918551866",
-            "api_secret" to "cEGHL0RGJwkARN5GcJQf5BzWBWk"
-        )
+    fun providePostRepository(firestore: FirebaseFirestore, cloudinaryService: CloudinaryService): PostRepository {
+        return PostRepository(firestore, cloudinaryService)
+    }
 
-        val cloudinary = Cloudinary(config)
-        MediaManager.init(context, config) // для доступа через MediaManager, если используешь его тоже
-        return cloudinary
+    @Provides
+    @Singleton
+    fun provideProfileRepository(firestore: FirebaseFirestore, cloudinaryService: CloudinaryService): ProfileRepository {
+        return ProfileRepository(firestore, cloudinaryService)
+    }
+
+    @Provides
+    @Singleton
+    fun provideStoryRepository(firestore: FirebaseFirestore, cloudinaryService: CloudinaryService): StoryRepository {
+        return StoryRepository(firestore, cloudinaryService)
+    }
+
+    @Provides
+    @Singleton
+    fun provideUserRepository(firebaseAuth: FirebaseAuth): UserRepository {
+        return UserRepository(firebaseAuth)
     }
 }

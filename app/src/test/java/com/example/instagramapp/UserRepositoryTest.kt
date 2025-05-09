@@ -40,22 +40,17 @@ class UserRepositoryTest {
 
     @Test
     fun `signUp should return user on success`() = runTest {
-        // Настраиваем реальные объекты FirebaseUser и AuthResult
         val user = mockk<FirebaseUser>(relaxed = true)
         val authResult = mockk<AuthResult> {
             every { this@mockk.user } returns user
         }
 
-        // Используем настоящую завершённую Task от Google Tasks API
         val completedTask: Task<AuthResult> = Tasks.forResult(authResult)
 
-        // Настраиваем FirebaseAuth
         every { firebaseAuth.createUserWithEmailAndPassword(any(), any()) } returns completedTask
 
-        // Вызываем метод
         val result = userRepository.signUp("test@mail.com", "password")
 
-        // Проверка
         assertTrue(result.isSuccess)
         assertEquals(user, result.getOrNull())
     }
@@ -123,22 +118,16 @@ class UserRepositoryTest {
 
     @Test
     fun `reloadUser should succeed when user is valid and reload is successful`() = runTest {
-        // Мокаем FirebaseAuth
         val mockFirebaseAuth = mockk<FirebaseAuth>()
 
-        // Мокаем FirebaseUser
         val mockUser = mockk<FirebaseUser>()
 
-        // Мокаем метод getCurrentUser, чтобы он возвращал mockUser
         every { mockFirebaseAuth.currentUser } returns mockUser
 
-        // Мокаем метод addAuthStateListener
         every { mockFirebaseAuth.addAuthStateListener(any()) } just runs
 
-        // Создаем UserRepository с замоканным FirebaseAuth
         val userRepository = UserRepository(mockFirebaseAuth)
 
-        // Ваши тестовые действия, например, вызываем метод reloadUser
         userRepository.reloadUser()
     }
 
@@ -157,17 +146,14 @@ class UserRepositoryTest {
         val user = mockk<FirebaseUser>()
         val task = mockk<Task<Void>>()
 
-        // Настройка всех необходимых методов для Task
         every { task.isSuccessful } returns false
         every { task.exception } returns RuntimeException("Reload error")
-        every { task.isComplete } returns true // Добавьте настройку isComplete, если она используется
+        every { task.isComplete } returns true
         every { user.reload() } returns task
         every { firebaseAuth.currentUser } returns user
 
-        // Вызов метода reloadUser
         val result = userRepository.reloadUser()
 
-        // Проверка на то, что результат неудачен, и что сообщение об ошибке верно
         assertTrue(result.isFailure)
         assertEquals("Reload error", result.exceptionOrNull()?.message)
     }
