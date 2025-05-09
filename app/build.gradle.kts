@@ -54,6 +54,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":serialization-library"))
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.7.3"))
     implementation("com.google.firebase:firebase-auth")

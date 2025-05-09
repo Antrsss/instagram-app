@@ -27,13 +27,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.instagramapp.models.Comment
 import com.example.instagramapp.viewmodels.AuthUiState
 import com.example.instagramapp.viewmodels.AuthViewModel
+import com.example.serialization_library.SerializationFormat
+import com.example.serialization_library.SerializationManager
 import kotlinx.coroutines.flow.collectLatest
+import java.io.File
+import java.util.UUID
 
 @Composable
 fun EmailPasswordScreen(
@@ -170,6 +176,22 @@ fun EmailPasswordScreen(
                 ) {
                     Text("Create Account")
                 }
+
+                val serializer = SerializationManager()
+                val context = LocalContext.current
+                val comment = Comment(
+                    authorUid = "jkvvkvl",
+                    authorUsername = "Me",
+                    postUuid = UUID.randomUUID(),
+                    text = "New Comment",
+                )
+                val file = File(context.applicationContext.filesDir, "comment.json")
+                serializer.serialize(comment, file.absolutePath, SerializationFormat.JSON)
+                //val commentFromJson = serializer.deserialize<Comment>("comment.json", SerializationFormat.JSON)
+                //serializer.serialize(comment, "comment.xml", SerializationFormat.XML)
+                //val commentFromXml = serializer.deserialize<Comment>("comment.xml", SerializationFormat.XML)
+
+                Text(text = "Комментарий сохранен в ${file.absolutePath}")
             }
         }
     }
