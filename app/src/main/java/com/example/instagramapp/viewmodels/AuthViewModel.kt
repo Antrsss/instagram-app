@@ -30,7 +30,11 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             userRepository.authState.collect { user ->
                 _uiState.value = if (user != null) {
-                    AuthUiState.Authenticated(user)
+                    if (user.uid.isNullOrBlank()) {
+                        AuthUiState.Error("User ID is missing")
+                    } else {
+                        AuthUiState.Authenticated(user)
+                    }
                 } else {
                     AuthUiState.Unauthenticated
                 }

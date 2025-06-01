@@ -1,5 +1,6 @@
 package com.example.instagramapp.screens
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -32,18 +33,18 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.instagramapp.models.Comment
+import androidx.navigation.NavController
+import com.example.instagramapp.navigation.Screen
 import com.example.instagramapp.viewmodels.AuthUiState
 import com.example.instagramapp.viewmodels.AuthViewModel
-import com.example.serialization_library.SerializationFormat
-import com.example.serialization_library.SerializationManager
 import kotlinx.coroutines.flow.collectLatest
 import java.io.File
 import java.util.UUID
 
 @Composable
 fun EmailPasswordScreen(
-    viewModel: AuthViewModel = hiltViewModel()
+    navController: NavController,
+    viewModel: AuthViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var email by remember { mutableStateOf("") }
@@ -51,9 +52,27 @@ fun EmailPasswordScreen(
 
     LaunchedEffect(Unit) {
         viewModel.uiState.collectLatest { state ->
-            if (state is AuthUiState.Error) {
-                email = ""
-                password = ""
+            when (state) {
+                is AuthUiState.Error -> {
+                    email = ""
+                    password = ""
+                    Log.e("AuthFlow", "Error: ${state.message}")
+                }
+                is AuthUiState.Authenticated -> {
+                    Log.d("AuthFlow", "Authenticated with user: ${state.user.uid}")
+                    if (state.user.uid.isNullOrBlank()) {
+                        Log.e("AuthFlow", "User ID is null or empty")
+                    } else {
+                        try {
+                            navController.navigate(Screen.Profile.createRoute(state.user.uid)) {
+                                popUpTo(Screen.Auth.route) { inclusive = true }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("AuthFlow", "Navigation failed", e)
+                        }
+                    }
+                }
+                else -> {}
             }
         }
     }

@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.instagramapp.models.Post
 import com.example.instagramapp.models.Profile
+import com.example.instagramapp.repos.PostRepository
 import com.example.instagramapp.repos.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,7 +16,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository,
+    private val postRepository: PostRepository
 ) : ViewModel() {
 
     private val _profileUiState = MutableStateFlow<ProfileUiState>(ProfileUiState.Initial)
@@ -22,6 +25,9 @@ class ProfileViewModel @Inject constructor(
 
     private val _posts = MutableStateFlow<List<Post>>(emptyList())
     val posts = _posts.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
 
     private fun observeProfileState() {
         viewModelScope.launch {
@@ -32,15 +38,31 @@ class ProfileViewModel @Inject constructor(
     fun loadProfile(userUid: String) {
         _profileUiState.value = ProfileUiState.Loading
         viewModelScope.launch {
-            profileRepository.getProfile(userUid)
-                .onSuccess { profile ->
+            try {
+                val profileDeferred = async { profileRepository.getProfile(userUid) }
+                val postsDeferred = async { postRepository.getUserPosts(userUid) }
+
+                val profileResult = profileDeferred.await()
+                val postsResult = postsDeferred.await()
+
+                profileResult.onSuccess { profile ->
                     _profileUiState.value = ProfileUiState.Loaded(profile)
-                }
-                .onFailure { error ->
+                }.onFailure { error ->
                     _profileUiState.value = ProfileUiState.Error(
                         error.message ?: "Failed to load profile"
                     )
                 }
+
+                postsResult.onSuccess { posts ->
+                    _posts.value = posts
+                }
+            } catch (e: Exception) {
+                _profileUiState.value = ProfileUiState.Error(
+                    e.message ?: "Failed to load data"
+                )
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 
@@ -57,6 +79,32 @@ class ProfileViewModel @Inject constructor(
                     )
                 }
         }
+    }
+
+    fun updateProfilePhoto(userUid: String, imageUri: String) {
+        _profileUiState.value = ProfileUiState.Loading
+        viewModelScope.launch {
+            profileRepository.updateProfilePhoto(userUid, imageUri)
+                .onSuccess { photoUrl ->
+                    val currentProfile = (_profileUiState.value as? ProfileUiState.Loaded)?.profile
+                    currentProfile?.let {
+                        _profileUiState.value = ProfileUiState.Loaded(
+                            it.copy(photoUrl = photoUrl),
+                            "Photo updated"
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _profileUiState.value = ProfileUiState.Error(
+                        error.message ?: "Failed to update photo"
+                    )
+                }
+        }
+    }
+
+    fun refreshData(userUid: String) {
+        _isRefreshing.value = true
+        loadProfile(userUid)
     }
 
     fun editProfile(profile: Profile) {

@@ -55,6 +55,10 @@ android {
 
 dependencies {
     implementation(project(":serialization-library"))
+
+    implementation("androidx.compose.foundation:foundation:1.3.1")
+    implementation("androidx.navigation:navigation-compose:2.5.3")
+
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.7.3"))
     implementation("com.google.firebase:firebase-auth")
