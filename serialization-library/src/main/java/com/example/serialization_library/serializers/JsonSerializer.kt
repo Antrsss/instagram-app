@@ -48,7 +48,6 @@ class JsonSerializer {
             ?: throw IllegalArgumentException("No primary constructor found for $targetClass")
         val args = mutableMapOf<KParameter, Any?>()
 
-        // Улучшенный парсинг JSON объекта с обработкой вложенных структур
         val pairs = mutableListOf<Pair<String, String>>()
         var current = jsonObj
         while (current.isNotEmpty()) {

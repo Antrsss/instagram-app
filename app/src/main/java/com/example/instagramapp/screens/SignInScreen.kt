@@ -185,13 +185,30 @@ fun EmailPasswordScreen(
                     postUuid = UUID.randomUUID(),
                     text = "New Comment",
                 )
-                val file = File(context.applicationContext.filesDir, "comment.json")
-                serializer.serialize(comment, file.absolutePath, SerializationFormat.JSON)
-                //val commentFromJson = serializer.deserialize<Comment>("comment.json", SerializationFormat.JSON)
-                //serializer.serialize(comment, "comment.xml", SerializationFormat.XML)
+                val myObject = object {
+                    val hello = "Hello"
+                    val list = listOf(1, 2, 3)
+                    val zero = null
+                }
+                val filename = "comment.xml"
+                val file = File(context.applicationContext.filesDir, filename)
+                //serializer.serialize(comment, file.absolutePath, SerializationFormat.JSON)
+                serializer.serialize(comment, file.absolutePath, SerializationFormat.XML)
                 //val commentFromXml = serializer.deserialize<Comment>("comment.xml", SerializationFormat.XML)
 
-                Text(text = "Комментарий сохранен в ${file.absolutePath}")
+                val fileContent = try {
+                    file.readText()
+                } catch (e: Exception) {
+                    "Не удалось прочитать файл: ${e.message}"
+                }
+
+                Column {
+                    Text(text = "Комментарий сохранен в ${file.absolutePath}")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(text = "Содержимое файла:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = fileContent)
+                }
             }
         }
     }

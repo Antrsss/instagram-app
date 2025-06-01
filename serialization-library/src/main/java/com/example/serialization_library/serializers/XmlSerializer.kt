@@ -84,7 +84,6 @@ class XmlSerializer {
                 param.type.classifier == Double::class -> value.toDouble()
                 param.type.classifier == Boolean::class -> value.toBoolean()
                 else -> {
-                    // Handle both data classes and regular classes
                     val nestedClass = param.type.classifier as? KClass<*>
                         ?: throw IllegalArgumentException("Unsupported type for $tagName")
                     parseXmlContent(value, nestedClass)
