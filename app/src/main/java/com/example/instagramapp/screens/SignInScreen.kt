@@ -1,6 +1,5 @@
 package com.example.instagramapp.screens
 
-import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -32,39 +31,35 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import com.example.instagramapp.models.Profile
-import com.example.instagramapp.navigation.Screen
 import com.example.instagramapp.viewmodels.AuthUiState
 import com.example.instagramapp.viewmodels.AuthViewModel
 import com.example.instagramapp.viewmodels.ProfileUiState
 import com.example.instagramapp.viewmodels.ProfileViewModel
-import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun EmailPasswordScreen(
     authViewModel: AuthViewModel,
-    onAuthenticated: (String) -> Unit
+    onNavigateToUsername: () -> Unit,
+    onNavigateToProfile: (String) -> Unit,
 ) {
     val uiState by authViewModel.uiState.collectAsState()
+    val hasProfile by authViewModel.hasProfile.collectAsState()
+
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    LaunchedEffect(uiState) {
-        authViewModel.uiState.collectLatest { state ->
-            when (state) {
-                is AuthUiState.Error -> {
-                    email = ""
-                    password = ""
-                    Log.e("AuthFlow", "Error: ${state.message}")
+    LaunchedEffect(uiState, hasProfile) {
+        when (uiState) {
+            is AuthUiState.Authenticated -> {
+                if (hasProfile) {
+                    val userUid = authViewModel.currentUser!!.uid
+                    onNavigateToProfile(userUid)
+                } else {
+                    onNavigateToUsername()
                 }
-                is AuthUiState.Authenticated -> {
-                    state.user.uid?.let { userId ->
-                        onAuthenticated(userId)
-                    }
-                }
-                else -> {}
             }
+            else -> {}
         }
     }
 
@@ -197,11 +192,11 @@ fun SetProfileUsernameScreen(
 ) {
     var username by remember { mutableStateOf("") }
     val uiState by profileViewModel.profileUiState.collectAsState()
-    val userUid = authViewModel.currentUser!!.uid
+    val currentUser = authViewModel.currentUser
 
     LaunchedEffect(uiState) {
-        if (uiState is ProfileUiState.Loaded) {
-            onProfileCreated(userUid)
+        if (uiState is ProfileUiState.Loaded && currentUser != null) {
+            onProfileCreated(currentUser!!.uid)
         }
     }
 
@@ -228,7 +223,7 @@ fun SetProfileUsernameScreen(
                     return@Button
                 }
                 val newProfile = Profile(
-                    userUid = userUid,
+                    userUid = currentUser!!.uid,
                     username = username,
                 )
                 profileViewModel.createProfile(newProfile)

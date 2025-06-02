@@ -1,6 +1,7 @@
 package com.example.instagramapp.navigation
 
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -25,12 +26,12 @@ import com.example.instagramapp.viewmodels.ProfileViewModel
 sealed class Screen(val route: String) {
     object Auth : Screen("auth")
     object Username : Screen("username")
+
     object Home : Screen("home")
     object Profile : Screen("profile/{userId}") {
         fun createRoute(userId: String) = "profile/$userId"
     }
     object Search : Screen("search")
-    object Activity : Screen("activity")
     object Create : Screen("create")
 
 }
@@ -38,7 +39,8 @@ sealed class Screen(val route: String) {
 data class BottomNavItem(
     val name: String,
     val route: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val needsUserId: Boolean = false
 )
 
 @Composable
@@ -56,8 +58,13 @@ fun InstagramNavigation(
         composable(Screen.Auth.route) { backStackEntry ->
             EmailPasswordScreen(
                 authViewModel = authViewModel,
-                onAuthenticated = { userId ->
+                onNavigateToUsername = {
                     navController.navigate(Screen.Username.route) {
+                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    }
+                },
+                onNavigateToProfile = { userUid ->
+                    navController.navigate(Screen.Profile.createRoute(userUid)) {
                         popUpTo(Screen.Auth.route) { inclusive = true }
                     }
                 }
@@ -92,9 +99,6 @@ fun InstagramNavigation(
         composable(Screen.Search.route) {
             //SearchScreen(navController = navController)
         }
-        composable(Screen.Activity.route) {
-            //ActivityScreen(navController = navController)
-        }
         composable(Screen.Create.route) {
             //CreateScreen(navController = navController)
         }
@@ -104,6 +108,7 @@ fun InstagramNavigation(
 @Composable
 fun InstagramBottomBar(
     navController: NavController,
+    authViewModel: AuthViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
     val items = listOf(
@@ -124,13 +129,16 @@ fun InstagramBottomBar(
         ),
         BottomNavItem(
             name = "Profile",
-            route = Screen.Profile.createRoute("current_user"), // Замените на реальный userId
-            icon = Icons.Default.Person
+            route = "profile",  // Базовый маршрут без ID
+            icon = Icons.Default.Person,
+            needsUserId = true  // Указываем, что требуется userId
         )
     )
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    val currentUser by authViewModel.currentUser.collectAsState()
 
     NavigationBar(
         modifier = modifier,
@@ -146,7 +154,13 @@ fun InstagramBottomBar(
                     else -> currentRoute == item.route
                 },
                 onClick = {
-                    navController.navigate(item.route) {
+                    val finalRoute = if (item.needsUserId && currentUser != null) {
+                        Screen.Profile.createRoute(currentUser!!.uid)
+                    } else {
+                        item.route
+                    }
+
+                    navController.navigate(finalRoute) {
                         popUpTo(navController.graph.startDestinationId)
                         launchSingleTop = true
                     }

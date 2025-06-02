@@ -2,6 +2,7 @@ package com.example.instagramapp.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.instagramapp.repos.ProfileRepository
 import com.example.instagramapp.repos.UserRepository
 import com.google.firebase.auth.FirebaseUser
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,8 +14,12 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
+
+    private val _hasProfile = MutableStateFlow(false)
+    val hasProfile: StateFlow<Boolean> = _hasProfile.asStateFlow()
 
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Initial)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -29,16 +34,23 @@ class AuthViewModel @Inject constructor(
     private fun observeAuthState() {
         viewModelScope.launch {
             userRepository.authState.collect { user ->
-                _uiState.value = if (user != null) {
-                    if (user.uid.isNullOrBlank()) {
-                        AuthUiState.Error("User ID is missing")
-                    } else {
-                        AuthUiState.Authenticated(user)
-                    }
+                if (user != null) {
+                    checkProfileExists(user)
                 } else {
-                    AuthUiState.Unauthenticated
+                    _uiState.value = AuthUiState.Unauthenticated
+                    _hasProfile.value = false
                 }
             }
+        }
+    }
+
+    private suspend fun checkProfileExists(user: FirebaseUser) {
+        profileRepository.getProfile(user.uid).onSuccess { profile ->
+            _hasProfile.value = profile != null
+            _uiState.value = AuthUiState.Authenticated(user)
+        }.onFailure {
+            _hasProfile.value = false
+            _uiState.value = AuthUiState.Unauthenticated
         }
     }
 

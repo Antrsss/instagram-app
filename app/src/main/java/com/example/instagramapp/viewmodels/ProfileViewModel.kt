@@ -29,12 +29,6 @@ class ProfileViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
 
-    private fun observeProfileState() {
-        viewModelScope.launch {
-            //profileRepository.p
-        }
-    }
-
     fun loadProfile(userUid: String) {
         _profileUiState.value = ProfileUiState.Loading
         viewModelScope.launch {
