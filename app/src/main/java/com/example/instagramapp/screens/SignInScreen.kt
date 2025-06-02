@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
@@ -28,30 +29,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.instagramapp.models.Profile
 import com.example.instagramapp.navigation.Screen
 import com.example.instagramapp.viewmodels.AuthUiState
 import com.example.instagramapp.viewmodels.AuthViewModel
+import com.example.instagramapp.viewmodels.ProfileUiState
+import com.example.instagramapp.viewmodels.ProfileViewModel
 import kotlinx.coroutines.flow.collectLatest
-import java.io.File
-import java.util.UUID
 
 @Composable
 fun EmailPasswordScreen(
-    navController: NavController,
-    viewModel: AuthViewModel
+    authViewModel: AuthViewModel,
+    onAuthenticated: (String) -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by authViewModel.uiState.collectAsState()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-        viewModel.uiState.collectLatest { state ->
+    LaunchedEffect(uiState) {
+        authViewModel.uiState.collectLatest { state ->
             when (state) {
                 is AuthUiState.Error -> {
                     email = ""
@@ -59,17 +59,8 @@ fun EmailPasswordScreen(
                     Log.e("AuthFlow", "Error: ${state.message}")
                 }
                 is AuthUiState.Authenticated -> {
-                    Log.d("AuthFlow", "Authenticated with user: ${state.user.uid}")
-                    if (state.user.uid.isNullOrBlank()) {
-                        Log.e("AuthFlow", "User ID is null or empty")
-                    } else {
-                        try {
-                            navController.navigate(Screen.Profile.createRoute(state.user.uid)) {
-                                popUpTo(Screen.Auth.route) { inclusive = true }
-                            }
-                        } catch (e: Exception) {
-                            Log.e("AuthFlow", "Navigation failed", e)
-                        }
+                    state.user.uid?.let { userId ->
+                        onAuthenticated(userId)
                     }
                 }
                 else -> {}
@@ -135,26 +126,23 @@ fun EmailPasswordScreen(
 
         when (uiState) {
             is AuthUiState.Authenticated -> {
-                val user = (uiState as AuthUiState.Authenticated).user
-                Text(
-                    text = "Signed in as: ${user.email ?: "Unknown"}",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                //val user = (uiState as AuthUiState.Authenticated).user
 
-                Spacer(modifier = Modifier.height(16.dp))
 
-                if (!user.isEmailVerified) {
+                //Spacer(modifier = Modifier.height(16.dp))
+
+                /*if (!user.isEmailVerified) {
                     Button(
-                        onClick = { viewModel.sendEmailVerification() },
+                        onClick = { authViewModel.sendEmailVerification() },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Verify Email")
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                }
+                }*/
 
                 Button(
-                    onClick = { viewModel.reloadUser() },
+                    onClick = { authViewModel.reloadUser() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Reload User")
@@ -163,7 +151,7 @@ fun EmailPasswordScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Button(
-                    onClick = { viewModel.signOut() },
+                    onClick = { authViewModel.signOut() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Sign Out")
@@ -175,7 +163,7 @@ fun EmailPasswordScreen(
                         if (email.isBlank() || password.isBlank()) {
                             return@Button
                         }
-                        viewModel.signIn(email, password)
+                        authViewModel.signIn(email, password)
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -189,13 +177,65 @@ fun EmailPasswordScreen(
                         if (email.isBlank() || password.isBlank()) {
                             return@Button
                         }
-                        viewModel.signUp(email, password)
+                        authViewModel.signUp(email, password)
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Create Account")
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun SetProfileUsernameScreen(
+    authViewModel: AuthViewModel,
+    profileViewModel: ProfileViewModel,
+    onProfileCreated: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var username by remember { mutableStateOf("") }
+    val uiState by profileViewModel.profileUiState.collectAsState()
+    val userUid = authViewModel.currentUser!!.uid
+
+    LaunchedEffect(uiState) {
+        if (uiState is ProfileUiState.Loaded) {
+            onProfileCreated(userUid)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        OutlinedTextField(
+            value = username,
+            onValueChange = { username = it },
+            label = { Text("Username") },
+            leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = "Username") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = {
+                if (username.isBlank()) {
+                    return@Button
+                }
+                val newProfile = Profile(
+                    userUid = userUid,
+                    username = username,
+                )
+                profileViewModel.createProfile(newProfile)
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Create Profile")
         }
     }
 }

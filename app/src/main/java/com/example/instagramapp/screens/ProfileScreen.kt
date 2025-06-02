@@ -1,9 +1,7 @@
 package com.example.instagramapp.screens
 
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
@@ -38,7 +35,6 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -64,7 +60,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -73,14 +68,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.instagramapp.R
 import com.example.instagramapp.models.Post
 import com.example.instagramapp.models.Profile
 import com.example.instagramapp.utils.RegisterImagePicker
 import com.example.instagramapp.utils.rememberImagePicker
 import com.example.instagramapp.viewmodels.ProfileUiState
 import com.example.instagramapp.viewmodels.ProfileViewModel
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 @Composable
@@ -261,7 +254,6 @@ private fun ProfileHeader(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Аватар
         Box(
             modifier = Modifier
                 .size(90.dp)
@@ -293,7 +285,6 @@ private fun ProfileHeader(
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        // Статистика
         Row(
             modifier = Modifier.weight(1f),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -304,7 +295,6 @@ private fun ProfileHeader(
         }
     }
 
-    // Кнопка редактирования
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -565,7 +555,6 @@ private fun PostsGrid(
     posts: List<Post>,
     navController: NavController
 ) {
-    // Добавляем необходимые импорты
     val context = LocalContext.current
 
     if (posts.isEmpty()) {

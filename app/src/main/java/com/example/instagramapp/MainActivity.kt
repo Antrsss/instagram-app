@@ -12,14 +12,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.instagramapp.navigation.InstagramBottomBar
 import com.example.instagramapp.navigation.InstagramNavigation
-import com.example.instagramapp.navigation.InstagramTopBar
 import com.example.instagramapp.navigation.Screen
 import com.example.instagramapp.screens.EmailPasswordScreen
 import com.example.instagramapp.ui.theme.InstagramAppTheme
+import com.example.instagramapp.viewmodels.AuthViewModel
+import com.example.instagramapp.viewmodels.ProfileViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -28,12 +30,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             InstagramAppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    InstagramAppTheme {
-                        InstagramApp()
-                    }
-                    val padding = innerPadding
-                }
+                InstagramApp()
             }
         }
     }
@@ -47,23 +44,8 @@ fun InstagramApp() {
     val currentRoute = currentDestination?.route ?: Screen.Auth.route
 
     Scaffold(
-        topBar = {
-            when (currentRoute) {
-                Screen.Profile.route -> InstagramTopBar(
-                    title = "Profile",
-                    canNavigateBack = navController.previousBackStackEntry != null,
-                    navigateUp = { navController.navigateUp() }
-                )
-                // Добавьте другие экраны по необходимости
-                else -> InstagramTopBar(
-                    title = "Instagram",
-                    canNavigateBack = navController.previousBackStackEntry != null,
-                    navigateUp = { navController.navigateUp() }
-                )
-            }
-        },
         bottomBar = {
-            if (currentRoute != Screen.Auth.route) {
+            if (currentRoute != Screen.Auth.route && currentRoute != Screen.Username.route) {
                 InstagramBottomBar(navController = navController)
             }
         }

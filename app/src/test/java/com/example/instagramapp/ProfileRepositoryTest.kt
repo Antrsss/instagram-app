@@ -8,14 +8,12 @@ import com.google.android.gms.tasks.Tasks
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.QuerySnapshot
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -62,7 +60,6 @@ class ProfileRepositoryTest {
     fun `createProfile should save profile successfully`() = runTest {
         val profile = Profile(
             userUid = "user123",
-            name = "Test User",
             username = "testuser"
         )
 
@@ -86,7 +83,6 @@ class ProfileRepositoryTest {
     fun `createProfile should return failure when Firestore fails`() = runTest {
         val profile = Profile(
             userUid = "user123",
-            name = "Test User",
             username = "testuser"
         )
 
@@ -109,7 +105,6 @@ class ProfileRepositoryTest {
         val userUid = "user123"
         val expectedProfile = Profile(
             userUid = userUid,
-            name = "Test User",
             username = "testuser"
         )
 
@@ -158,7 +153,6 @@ class ProfileRepositoryTest {
     fun `editProfile should update profile fields successfully`() = runTest {
         val profile = Profile(
             userUid = "user123",
-            name = "Updated Name",
             username = "updateduser",
             bio = "New bio",
             website = "example.com",
@@ -195,7 +189,6 @@ class ProfileRepositoryTest {
     fun `editProfile should return failure when update fails`() = runTest {
         val profile = Profile(
             userUid = "user123",
-            name = "Test User",
             username = "testuser"
         )
 
@@ -223,7 +216,6 @@ class ProfileRepositoryTest {
         val photoUrl = "cloud_url"
         val profile = Profile(
             userUid = userUid,
-            name = "Test User",
             username = "testuser",
             photoUrl = photoUrl
         )
@@ -250,7 +242,6 @@ class ProfileRepositoryTest {
         val userUid = "user123"
         val profile = Profile(
             userUid = userUid,
-            name = "Test User",
             username = "testuser",
             photoUrl = null
         )
@@ -277,7 +268,6 @@ class ProfileRepositoryTest {
         val photoUrl = "cloud_url"
         val profile = Profile(
             userUid = userUid,
-            name = "Test User",
             username = "testuser",
             photoUrl = photoUrl
         )
