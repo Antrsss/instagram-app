@@ -5,11 +5,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -50,6 +52,9 @@ fun InstagramNavigation(
     profileViewModel: ProfileViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
+    val currentUser = authViewModel.currentUser
+    val hasProfile by authViewModel.hasProfile.collectAsState()
+
     NavHost(
         navController = navController,
         startDestination = Screen.Splash.route,
@@ -72,32 +77,14 @@ fun InstagramNavigation(
                 }
             )
         }
-        composable(Screen.Auth.route) { backStackEntry ->
-            EmailPasswordScreen(
-                authViewModel = authViewModel,
-                onNavigateToUsername = {
-                    navController.navigate(Screen.Username.route) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
-                    }
-                },
-                onNavigateToProfile = { userUid ->
-                    navController.navigate(Screen.Profile.createRoute(userUid)) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
-                    }
-                }
-            )
-        }
-        composable(Screen.Username.route) {
-            SetProfileUsernameScreen(
-                authViewModel = authViewModel,
-                profileViewModel = profileViewModel,
-                onProfileCreated = { userUid ->
-                    navController.navigate(Screen.Profile.createRoute(userUid)) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
-                    }
-                }
-            )
-        }
+
+        authGraph(navController, authViewModel)
+        usernameGraph(navController, authViewModel, profileViewModel)
+        //profileGraph(navController)
+        //homeGraph()
+
+
+
         composable(Screen.Home.route) {
             //HomeScreen(navController = navController)
         }
@@ -191,5 +178,51 @@ fun InstagramBottomBar(
                 )
             )
         }
+    }
+}
+
+private fun NavGraphBuilder.authGraph(
+    navController: NavController,
+    authViewModel: AuthViewModel
+) {
+    composable(Screen.Auth.route) { backStackEntry ->
+        EmailPasswordScreen(
+            authViewModel = authViewModel,
+            onNavigateToUsername = {
+                navController.navigate(Screen.Username.route) {
+                    popUpTo(Screen.Auth.route) { inclusive = true }
+                }
+            },
+            onNavigateToProfile = { userUid ->
+                navController.navigate(Screen.Profile.createRoute(userUid)) {
+                    popUpTo(Screen.Auth.route) { inclusive = true }
+                }
+            }
+        )
+    }
+}
+
+private fun NavGraphBuilder.usernameGraph(
+    navController: NavController,
+    authViewModel: AuthViewModel,
+    profileViewModel: ProfileViewModel
+) {
+    composable(Screen.Username.route) {
+        val userId = authViewModel.currentUser?.uid ?: run {
+            navController.navigate(Screen.Auth.route) {
+                popUpTo(Screen.Username.route) { inclusive = true }
+            }
+            return@composable
+        }
+
+        SetProfileUsernameScreen(
+            authViewModel = authViewModel,
+            profileViewModel = profileViewModel,
+            onProfileCreated = {
+                navController.navigate(Screen.Profile.createRoute(userId)) {
+                    popUpTo(Screen.Auth.route) { inclusive = true }
+                }
+            }
+        )
     }
 }

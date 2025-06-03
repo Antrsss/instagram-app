@@ -1,6 +1,5 @@
 package com.example.instagramapp.utils
 
-// ImagePicker.kt
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
