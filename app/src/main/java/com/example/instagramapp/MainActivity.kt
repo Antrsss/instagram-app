@@ -38,7 +38,10 @@ fun InstagramApp() {
 
     Scaffold(
         bottomBar = {
-            if (currentRoute != Screen.Auth.route && currentRoute != Screen.Username.route) {
+            if (currentRoute != Screen.Auth.route &&
+                currentRoute != Screen.Username.route &&
+                currentRoute != Screen.Splash.route)
+            {
                 InstagramBottomBar(navController = navController)
             }
         }

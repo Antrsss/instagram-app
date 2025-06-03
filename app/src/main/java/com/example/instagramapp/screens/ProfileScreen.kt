@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -80,17 +79,16 @@ import kotlinx.coroutines.launch
 fun ProfileScreen(
     userId: String,
     navController: NavController,
-    viewModel: ProfileViewModel = hiltViewModel()
+    profileViewModel: ProfileViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.profileUiState.collectAsState()
-    val posts by viewModel.posts.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val uiState by profileViewModel.profileUiState.collectAsState()
+    val posts by profileViewModel.posts.collectAsState()
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Posts", "Reels", "Tagged")
+    val tabs = listOf("Posts", "Tagged")
 
     var showEditDialog by remember { mutableStateOf(false) }
     var showImagePicker by remember { mutableStateOf(false) }
@@ -100,13 +98,13 @@ fun ProfileScreen(
         imagePicker = imagePicker,
         onImagePicked = { uri ->
             uri?.let {
-                viewModel.updateProfilePhoto(userId, it.toString())
+                profileViewModel.updateProfilePhoto(userId, it.toString())
             }
         }
     )
 
     LaunchedEffect(userId) {
-        viewModel.loadProfile(userId)
+        profileViewModel.loadProfile(userId)
     }
 
     if (showImagePicker) {
@@ -178,7 +176,7 @@ fun ProfileScreen(
             }
             is ProfileUiState.Error -> ErrorState(
                 message = (uiState as ProfileUiState.Error).message,
-                onRetry = { viewModel.loadProfile(userId) }
+                onRetry = { profileViewModel.loadProfile(userId) }
             )
         }
     }
@@ -189,12 +187,12 @@ fun ProfileScreen(
                 profile = profile,
                 onDismiss = { showEditDialog = false },
                 onSave = { updatedProfile ->
-                    viewModel.editProfile(updatedProfile)
+                    profileViewModel.editProfile(updatedProfile)
                     showEditDialog = false
                 },
                 checkUsernameAvailability = { username ->
                     var isAvailable = false
-                    viewModel.checkUsernameAvailability(username) { available ->
+                    profileViewModel.checkUsernameAvailability(username) { available ->
                         isAvailable = available
                     }
                     isAvailable
@@ -218,14 +216,6 @@ private fun ProfileTopBar(
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp
             )
-        },
-        navigationIcon = {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "Back"
-                )
-            }
         },
         actions = {
             IconButton(onClick = onSettingsClick) {

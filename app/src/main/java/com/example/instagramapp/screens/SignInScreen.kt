@@ -1,6 +1,8 @@
 package com.example.instagramapp.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,14 +30,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.example.instagramapp.R
 import com.example.instagramapp.models.Profile
 import com.example.instagramapp.viewmodels.AuthUiState
 import com.example.instagramapp.viewmodels.AuthViewModel
 import com.example.instagramapp.viewmodels.ProfileUiState
 import com.example.instagramapp.viewmodels.ProfileViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun EmailPasswordScreen(
@@ -180,6 +185,27 @@ fun EmailPasswordScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun SplashScreen(
+    onLoadingComplete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.app_logo),
+            contentDescription = "App Logo"
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        delay(2000)
+        onLoadingComplete()
     }
 }
 

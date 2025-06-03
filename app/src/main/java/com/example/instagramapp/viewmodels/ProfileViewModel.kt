@@ -26,9 +26,6 @@ class ProfileViewModel @Inject constructor(
     private val _posts = MutableStateFlow<List<Post>>(emptyList())
     val posts = _posts.asStateFlow()
 
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing = _isRefreshing.asStateFlow()
-
     fun loadProfile(userUid: String) {
         _profileUiState.value = ProfileUiState.Loading
         viewModelScope.launch {
@@ -54,8 +51,6 @@ class ProfileViewModel @Inject constructor(
                 _profileUiState.value = ProfileUiState.Error(
                     e.message ?: "Failed to load data"
                 )
-            } finally {
-                _isRefreshing.value = false
             }
         }
     }
@@ -97,7 +92,6 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun refreshData(userUid: String) {
-        _isRefreshing.value = true
         loadProfile(userUid)
     }
 

@@ -1,12 +1,10 @@
 package com.example.instagramapp.navigation
 
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -24,6 +22,8 @@ import com.example.instagramapp.viewmodels.AuthViewModel
 import com.example.instagramapp.viewmodels.ProfileViewModel
 
 sealed class Screen(val route: String) {
+    object Splash : Screen("splash")
+
     object Auth : Screen("auth")
     object Username : Screen("username")
 
@@ -52,9 +52,26 @@ fun InstagramNavigation(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Auth.route,
+        startDestination = Screen.Splash.route,
         modifier = modifier
     ) {
+        composable(Screen.Splash.route) {
+            SplashScreen(
+                onLoadingComplete = {
+                    val startDestination = when {
+                        authViewModel.currentUser == null -> Screen.Auth.route
+                        authViewModel.hasProfile.value -> {
+                            val userUid = authViewModel.currentUser!!.uid
+                            Screen.Profile.createRoute(userUid)
+                        }
+                        else -> Screen.Username.route
+                    }
+                    navController.navigate(startDestination) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                }
+            )
+        }
         composable(Screen.Auth.route) { backStackEntry ->
             EmailPasswordScreen(
                 authViewModel = authViewModel,
@@ -138,7 +155,7 @@ fun InstagramBottomBar(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val currentUser by authViewModel.currentUser.collectAsState()
+    val currentUser = authViewModel.currentUser
 
     NavigationBar(
         modifier = modifier,
@@ -155,7 +172,7 @@ fun InstagramBottomBar(
                 },
                 onClick = {
                     val finalRoute = if (item.needsUserId && currentUser != null) {
-                        Screen.Profile.createRoute(currentUser!!.uid)
+                        Screen.Profile.createRoute(currentUser.uid)
                     } else {
                         item.route
                     }
