@@ -99,7 +99,11 @@ fun InstagramNavigation(
             )
         }
         composable(Screen.Search.route) {
-            //SearchScreen(navController = navController)
+            SearchScreen(
+                onProfileClick = { userId ->
+                    navController.navigate(Screen.Profile.createRoute(userId))
+                }
+            )
         }
         composable(Screen.Create.route) {
             CreateContentScreen(navController = navController)
@@ -153,9 +157,9 @@ fun InstagramBottomBar(
         ),
         BottomNavItem(
             name = "Profile",
-            route = "profile",  // Базовый маршрут без ID
+            route = "profile",
             icon = Icons.Default.Person,
-            needsUserId = true  // Указываем, что требуется userId
+            needsUserId = true
         )
     )
 

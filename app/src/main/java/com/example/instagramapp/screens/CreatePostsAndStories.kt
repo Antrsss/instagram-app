@@ -1,8 +1,10 @@
 package com.example.instagramapp.screens
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -159,20 +161,33 @@ fun CreatePostScreen(
     navController: NavController,
     modifier: Modifier = Modifier
 ) {
+    RequestPermissions()
+
     val context = LocalContext.current
     val uiState by postsViewModel.uiState.collectAsState()
     val selectedImages by postsViewModel.selectedImages.collectAsState()
 
     var description by remember { mutableStateOf("") }
 
+    // In CreatePostScreen
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.clipData?.let { clipData ->
                 val uris = (0 until clipData.itemCount).map { clipData.getItemAt(it).uri }
+                uris.forEach { uri ->
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
                 postsViewModel.selectImages(uris)
             } ?: result.data?.data?.let { uri ->
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
                 postsViewModel.selectImages(listOf(uri))
             }
         }
@@ -180,6 +195,7 @@ fun CreatePostScreen(
 
     LaunchedEffect(uiState) {
         if (uiState is PostsViewModel.PostUiState.Success) {
+            navController.previousBackStackEntry?.savedStateHandle?.set("post_created", true)
             navController.popBackStack()
         }
     }
@@ -558,3 +574,19 @@ fun CreateStoryScreen(
 }
 
 const val REQUEST_CODE_GALLERY = 1003
+
+@Composable
+fun RequestPermissions() {
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            Toast.makeText(context, "Permission needed to access photos", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+}

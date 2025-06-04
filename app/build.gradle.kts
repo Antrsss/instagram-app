@@ -72,6 +72,8 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-analytics")
 
+    implementation("com.google.firebase:firebase-storage-ktx:20.3.0")
+
     implementation("com.google.android.gms:play-services-auth:20.7.0")
 
     // Kotlin Coroutines
@@ -79,8 +81,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
-    // Cloudinary
-    implementation("com.cloudinary:cloudinary-android:3.0.2")
 
     // Dagger-Hilt
     implementation("com.google.dagger:hilt-android:2.48")

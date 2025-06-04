@@ -1,5 +1,6 @@
 package com.example.instagramapp.screens
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,11 +14,14 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.asFlow
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -71,6 +76,8 @@ import com.example.instagramapp.models.Post
 import com.example.instagramapp.models.Profile
 import com.example.instagramapp.utils.RegisterImagePicker
 import com.example.instagramapp.utils.rememberImagePicker
+import com.example.instagramapp.viewmodels.AuthViewModel
+import com.example.instagramapp.viewmodels.PostsViewModel
 import com.example.instagramapp.viewmodels.ProfileUiState
 import com.example.instagramapp.viewmodels.ProfileViewModel
 import kotlinx.coroutines.launch
@@ -79,16 +86,29 @@ import kotlinx.coroutines.launch
 fun ProfileScreen(
     userId: String,
     navController: NavController,
-    profileViewModel: ProfileViewModel = hiltViewModel()
+    profileViewModel: ProfileViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel(),
+    postsViewModel: PostsViewModel = hiltViewModel()
 ) {
     val uiState by profileViewModel.profileUiState.collectAsState()
-    val posts by profileViewModel.posts.collectAsState()
+    val posts by postsViewModel.userPosts.collectAsState()
+    val authedUser = authViewModel.currentUser
+    val isFollowing by profileViewModel.isFollowing.collectAsState()
+    LaunchedEffect(userId) {
+        postsViewModel.loadUserPosts(userId)
+    }
+    LaunchedEffect(posts) {
+        Log.d("ProfileScreen", "Posts loaded: ${posts.size}")
+        posts.forEach { post ->
+            Log.d("ProfileScreen", "Post ${post.postUuid} images: ${post.imageUrls}")
+        }
+    }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Posts", "Tagged")
+    val tabs = listOf("Posts")
 
     var showEditDialog by remember { mutableStateOf(false) }
     var showImagePicker by remember { mutableStateOf(false) }
@@ -105,11 +125,24 @@ fun ProfileScreen(
 
     LaunchedEffect(userId) {
         profileViewModel.loadProfile(userId)
+        profileViewModel.subscribeToUserPosts(userId)
+    }
+
+    LaunchedEffect(Unit) {
+        navController.currentBackStackEntry?.savedStateHandle
+            ?.getLiveData<Boolean>("post_created")
+            ?.asFlow()
+            ?.collect { created ->
+                if (created) {
+                    profileViewModel.refreshPosts(userId)
+                    navController.currentBackStackEntry?.savedStateHandle?.remove<Boolean>("post_created")
+                }
+            }
     }
 
     if (showImagePicker) {
         LaunchedEffect(showImagePicker) {
-            imagePicker.pickImage { /* Этот callback теперь обрабатывается в RegisterImagePicker */ }
+            imagePicker.pickImage { }
             showImagePicker = false
         }
     }
@@ -131,46 +164,79 @@ fun ProfileScreen(
                 val message = (uiState as ProfileUiState.Loaded).message
 
                 message?.let {
-                    scope.launch {
+                    LaunchedEffect(it) {
                         Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
                     }
                 }
 
-                Column(
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
-                        .verticalScroll(rememberScrollState())
                 ) {
-                    ProfileHeader(
-                        profile = profile,
-                        postCount = posts.size,
-                        followerCount = profile.followersCount ?: 0,
-                        followingCount = profile.followingCount ?: 0,
-                        onEditProfileClick = { showEditDialog = true },
-                        onPhotoClick = { showImagePicker = true },
-                        isCurrentUser = true // или проверка что это текущий пользователь
-                    )
+                    item {
+                        Column {
+                            ProfileHeader(
+                                profile = profile,
+                                postCount = posts.size,
+                                followerCount = profile.followersCount ?: 0,
+                                followingCount = profile.followingCount ?: 0,
+                                onEditProfileClick = { showEditDialog = true },
+                                onFollowBtnClick = {
+                                    authedUser?.uid?.let { currentUserUid ->
+                                        profileViewModel.followUser(currentUserUid, userId)
+                                    }
+                                },
+                                onUnfollowBtnClicked = {
+                                    authedUser?.uid?.let { currentUserUid ->
+                                        profileViewModel.unfollow(currentUserUid, userId)
+                                    }
+                                },
+                                onPhotoClick = { showImagePicker = true },
+                                isCurrentUser = (userId == authedUser?.uid),
+                                isFollowing = isFollowing
+                            )
 
-                    ProfileBio(
-                        name = profile.name,
-                        bio = profile.bio,
-                        website = profile.website
-                    )
+                            ProfileBio(
+                                name = profile.name,
+                                bio = profile.bio,
+                                website = profile.website
+                            )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
 
-                    ProfileTabs(
-                        selectedTabIndex = selectedTabIndex,
-                        tabs = tabs,
-                        onTabSelected = { selectedTabIndex = it }
-                    )
+                            ProfileTabs(
+                                selectedTabIndex = selectedTabIndex,
+                                tabs = tabs,
+                                onTabSelected = { selectedTabIndex = it }
+                            )
+                        }
+                    }
 
-                    when (selectedTabIndex) {
-                        0 -> PostsGrid(posts = posts, navController = navController)
-                        // 1 -> ReelsGrid()
-                        // 2 -> TaggedGrid()
-                        else -> PostsGrid(posts = posts, navController = navController)
+                    if (posts.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No posts yet",
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    } else {
+                        item {
+                            PostsGrid(
+                                posts = posts,
+                                navController = navController,
+                                onPostCreated = {
+                                    profileViewModel.refreshPosts(userId)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -198,6 +264,61 @@ fun ProfileScreen(
                     isAvailable
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun PostsGrid(
+    posts: List<Post>,
+    navController: NavController,
+    onPostCreated: () -> Unit
+) {
+    val context = LocalContext.current
+
+    if (posts.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("No posts yet", color = Color.Gray)
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 600.dp),
+            contentPadding = PaddingValues(1.dp)
+        ) {
+            items(posts) { post ->
+                post.imageUrls.firstOrNull()?.let { imageUrl ->
+                    Box(
+                        modifier = Modifier
+                            .aspectRatio(1f)
+                            .padding(1.dp)
+                            .clickable {
+                                navController.navigate("post/${post.postUuid}")
+                            }
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(imageUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Post image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                } ?: Box(
+                    modifier = Modifier
+                        .aspectRatio(1f)
+                        .background(Color.LightGray)
+                )
+            }
         }
     }
 }
@@ -235,8 +356,11 @@ private fun ProfileHeader(
     followerCount: Int,
     followingCount: Int,
     onEditProfileClick: () -> Unit,
+    onFollowBtnClick: () -> Unit,
+    onUnfollowBtnClicked: () -> Unit,
     onPhotoClick: () -> Unit,
-    isCurrentUser: Boolean
+    isCurrentUser: Boolean,
+    isFollowing: Boolean?,
 ) {
     Row(
         modifier = Modifier
@@ -291,19 +415,34 @@ private fun ProfileHeader(
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Button(
-            onClick = onEditProfileClick,
+            onClick = {
+                when (isFollowing) {
+                    true -> onUnfollowBtnClicked
+                    false -> {
+                        if (isCurrentUser) {
+                            onEditProfileClick
+                        } else {
+                            onFollowBtnClick
+                        }
+                    }
+                    null -> {}
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(36.dp),
             shape = RoundedCornerShape(6.dp),
-            colors = ButtonDefaults.buttonColors(
+            colors = if (isCurrentUser || isFollowing == true) ButtonDefaults.buttonColors(
                 containerColor = colorScheme.surfaceVariant,
                 contentColor = colorScheme.onSurface
+            ) else ButtonDefaults.buttonColors(
+                containerColor = Color.Green,
+                contentColor = Color.White
             )
         ) {
             Text(
                 text = if (isCurrentUser) "Edit Profile" else if (profile.isPrivate) "Request" else "Follow",
-                fontSize = 14.sp
+                fontSize = 14.sp,
             )
         }
     }
@@ -539,6 +678,7 @@ fun EditProfileDialog(
         }
     )
 }
+/*
 
 @Composable
 private fun PostsGrid(
@@ -590,4 +730,4 @@ private fun PostsGrid(
             }
         }
     }
-}
+}*/

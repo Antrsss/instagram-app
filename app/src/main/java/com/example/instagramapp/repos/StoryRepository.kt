@@ -1,7 +1,8 @@
 package com.example.instagramapp.repos
 
+import android.net.Uri
 import com.example.instagramapp.models.Story
-import com.example.instagramapp.services.CloudinaryService
+import com.example.instagramapp.services.FirebaseStorageService
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.util.*
@@ -9,17 +10,24 @@ import javax.inject.Inject
 
 class StoryRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val cloudinaryService: CloudinaryService
+    private val storageService: FirebaseStorageService
 ) {
     private val storiesCollection = firestore.collection("stories")
 
     suspend fun createStory(story: Story): Story {
         try {
+            // Загружаем фото в Firebase Storage
+            val photoUri = Uri.parse(story.photoUrl)
+            val photoUrl = storageService.uploadStory(story.authorUid, photoUri)
+
+            val storyWithUrl = story.copy(photoUrl = photoUrl)
+
             storiesCollection
-                .document(story.storyUuid.toString())
-                .set(story)
+                .document(storyWithUrl.storyUuid.toString())
+                .set(storyWithUrl)
                 .await()
-            return story
+
+            return storyWithUrl
         } catch (e: Exception) {
             throw Exception("Failed to create story", e)
         }
@@ -64,7 +72,7 @@ class StoryRepository @Inject constructor(
             val story = document.toObject(Story::class.java)
                 ?: throw Exception("Story not found")
 
-            cloudinaryService.deleteImage(story.photoUrl)
+            storageService.deleteStory(story.photoUrl)
 
             storiesCollection
                 .document(storyUuid.toString())

@@ -1,16 +1,17 @@
 package com.example.instagramapp.repos
 
-import android.content.Context
-import android.net.Uri
+import android.util.Log
 import com.example.instagramapp.models.Comment
 import com.example.instagramapp.models.Post
-import com.example.instagramapp.services.CloudinaryService
+import com.example.instagramapp.services.FirebaseStorageService
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.snapshots
 import com.google.firebase.firestore.toObject
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.*
@@ -18,8 +19,7 @@ import javax.inject.Inject
 
 class PostRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val cloudinaryService: CloudinaryService,
-    @ApplicationContext private val context: Context
+    private val storageService: FirebaseStorageService
 ) {
     private val postsCollection = firestore.collection("posts")
     private val commentsCollection = firestore.collection("comments")
@@ -28,33 +28,31 @@ class PostRepository @Inject constructor(
 
     suspend fun createPost(post: Post): Result<Post> = withContext(Dispatchers.IO) {
         try {
-            // Загружаем Uri изображений в Cloudinary
-            val uploadedUrls = post.imageUris.map { uri ->
-                cloudinaryService.uploadImage(uri)
+            // 1. Проверяем, что imageUrls не пустые
+            if (post.imageUrls.isEmpty()) {
+                throw IllegalArgumentException("Post must have at least one image URL")
             }
 
-            val postToCreate = post.copy(
-                imageUris = emptyList(), // Очищаем Uri, так как сохраняем только URLs
-                imageUrls = uploadedUrls, // Сохраняем загруженные URL
-                postUuid = UUID.randomUUID().toString(),
-                creationTime = Date()
+            // 2. Создаем документ с ВСЕМИ полями
+            val postData = hashMapOf(
+                "authorUid" to post.authorUid,
+                "description" to post.description,
+                "imageUrls" to post.imageUrls, // Важно: сохраняем URLs!
+                "likes" to post.likes,
+                "postUuid" to post.postUuid,
+                "creationTime" to post.creationTime
             )
 
-            postsCollection.document(postToCreate.postUuid)
-                .set(postToCreate)
+            // 3. Сохраняем в Firestore
+            postsCollection.document(post.postUuid)
+                .set(postData) // Используем set() вместо прямого сохранения объекта
                 .await()
 
-            Result.success(postToCreate)
+            Log.d("PostRepository", "Post saved with URLs: ${post.imageUrls}")
+            Result.success(post)
         } catch (e: Exception) {
+            Log.e("PostRepository", "Error saving post", e)
             Result.failure(e)
-        }
-    }
-
-    suspend fun uploadImageToCloudinary(uri: Uri): String = withContext(Dispatchers.IO) {
-        try {
-            cloudinaryService.uploadImage(uri)
-        } catch (e: Exception) {
-            throw Exception("Failed to upload image: ${e.message}")
         }
     }
 
@@ -62,45 +60,66 @@ class PostRepository @Inject constructor(
         try {
             val snapshot = postsCollection.document(postUuid).get().await()
             val post = snapshot.toObject<Post>()
+                ?.copy(postUuid = snapshot.id)
                 ?: throw Exception("Post not found")
 
             Result.success(post)
         } catch (e: Exception) {
+            Log.e("PostRepository", "Error getting post $postUuid", e)
             Result.failure(e)
         }
     }
 
-    suspend fun getUserPosts(userUid: String): Result<List<Post>> = withContext(Dispatchers.IO) {
+    fun getUserPostsLive(userId: String): Flow<List<Post>> = postsCollection
+        .whereEqualTo("authorUid", userId)
+        .orderBy("creationTime", Query.Direction.DESCENDING)
+        .snapshots()
+        .map { snapshot ->
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    doc.toObject(Post::class.java)?.copy(postUuid = doc.id)
+                } catch (e: Exception) {
+                    Log.e("PostRepository", "Error converting document to Post", e)
+                    null
+                }
+            }
+        }
+
+    suspend fun getUserPosts(userId: String): Result<List<Post>> = withContext(Dispatchers.IO) {
         try {
             val snapshot = postsCollection
-                .whereEqualTo("authorUid", userUid)
+                .whereEqualTo("authorUid", userId)
                 .orderBy("creationTime", Query.Direction.DESCENDING)
                 .get()
                 .await()
 
-            val posts = snapshot.documents.mapNotNull { it.toObject<Post>() }
+            Log.d("PostRepository", "Found ${snapshot.documents.size} posts for user $userId")
+
+            val posts = snapshot.documents.mapNotNull { doc ->
+                try {
+                    doc.toObject(Post::class.java)?.copy(postUuid = doc.id).also {
+                        Log.d("PostRepository", "Parsed post: ${it?.postUuid}")
+                    }
+                } catch (e: Exception) {
+                    Log.e("PostRepository", "Error parsing post ${doc.id}", e)
+                    null
+                }
+            }
+
             Result.success(posts)
         } catch (e: Exception) {
+            Log.e("PostRepository", "Error getting posts for user $userId", e)
             Result.failure(e)
         }
     }
 
+    // Остальные методы остаются без изменений
     suspend fun deletePost(postUuid: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val post = getPost(postUuid).getOrThrow()
-
-            // Удаляем изображения из Cloudinary (используем imageUrls)
-            post.imageUrls.forEach { imageUrl ->
-                try {
-                    cloudinaryService.deleteImage(imageUrl)
-                } catch (e: Exception) {
-                    println("Failed to delete image from Cloudinary: ${e.message}")
-                }
-            }
-
+            storageService.deletePostImages(post.imageUrls)
             postsCollection.document(postUuid).delete().await()
             deletePostRelatedData(postUuid)
-
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
