@@ -11,20 +11,15 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -85,7 +80,7 @@ class PostRepositoryTest {
             authorUid = "user123",
             creationTime = Date(0),
             description = "Test post",
-            imageUrls = listOf("local1", "local2"),
+            imageUris = listOf("local1", "local2"),
             likes = 0,
             postUuid = UUID(0, 0)
         )
@@ -108,7 +103,7 @@ class PostRepositoryTest {
 
         val createdPost = result.getOrNull()!!
         assertNotEquals(UUID(0, 0), createdPost.postUuid)
-        assertEquals(listOf("cloud1", "cloud2"), createdPost.imageUrls)
+        assertEquals(listOf("cloud1", "cloud2"), createdPost.imageUris)
 
         coVerify(exactly = 1) {
             documentReference.set(match { it as Post == createdPost })
@@ -121,7 +116,7 @@ class PostRepositoryTest {
             authorUid = "user123",
             creationTime = Date(0),
             description = "Test post",
-            imageUrls = emptyList(),
+            imageUris = emptyList(),
             likes = 0,
             postUuid = UUID(0, 0)
         )
@@ -147,7 +142,7 @@ class PostRepositoryTest {
             authorUid = "user123",
             creationTime = Date(),
             description = "Test post",
-            imageUrls = listOf("local1"),
+            imageUris = listOf("local1"),
             likes = 0
         )
 
@@ -169,7 +164,7 @@ class PostRepositoryTest {
             authorUid = "user123",
             creationTime = Date(),
             description = "Test post",
-            imageUrls = listOf("url1", "url2"),
+            imageUris = listOf("url1", "url2"),
             likes = 5,
             postUuid = postUuid
         )
@@ -243,7 +238,7 @@ class PostRepositoryTest {
         val post = Post(
             postUuid = postUuid,
             authorUid = "user123",
-            imageUrls = listOf("url1", "url2"),
+            imageUris = listOf("url1", "url2"),
             creationTime = Date(),
             description = "Test post",
             likes = 5
@@ -283,7 +278,7 @@ class PostRepositoryTest {
         val post = Post(
             postUuid = postUuid,
             authorUid = "user123",
-            imageUrls = listOf("url1"),
+            imageUris = listOf("url1"),
             creationTime = Date(),
             description = "Test post",
             likes = 5
@@ -312,7 +307,7 @@ class PostRepositoryTest {
         val post = Post(
             postUuid = postUuid,
             authorUid = "user123",
-            imageUrls = listOf("url1"),
+            imageUris = listOf("url1"),
             creationTime = Date(),
             description = "Test post",
             likes = 5

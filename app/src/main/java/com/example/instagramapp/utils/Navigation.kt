@@ -21,21 +21,23 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.instagramapp.screens.*
 import com.example.instagramapp.viewmodels.AuthViewModel
+import com.example.instagramapp.viewmodels.PostsViewModel
 import com.example.instagramapp.viewmodels.ProfileViewModel
+import com.example.instagramapp.viewmodels.StoriesViewModel
 
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
-
     object Auth : Screen("auth")
     object Username : Screen("username")
-
     object Home : Screen("home")
     object Profile : Screen("profile/{userId}") {
         fun createRoute(userId: String) = "profile/$userId"
     }
     object Search : Screen("search")
     object Create : Screen("create")
-
+    object CreatePost : Screen("create/post")
+    object CreateStory : Screen("create/story")
+    object CreateContent : Screen("create/content")
 }
 
 data class BottomNavItem(
@@ -66,8 +68,7 @@ fun InstagramNavigation(
                     val startDestination = when {
                         authViewModel.currentUser == null -> Screen.Auth.route
                         authViewModel.hasProfile.value -> {
-                            val userUid = authViewModel.currentUser!!.uid
-                            Screen.Profile.createRoute(userUid)
+                            Screen.Profile.createRoute(currentUser!!.uid)
                         }
                         else -> Screen.Username.route
                     }
@@ -80,10 +81,7 @@ fun InstagramNavigation(
 
         authGraph(navController, authViewModel)
         usernameGraph(navController, authViewModel, profileViewModel)
-        //profileGraph(navController)
-        //homeGraph()
-
-
+        contentCreationGraph(navController)
 
         composable(Screen.Home.route) {
             //HomeScreen(navController = navController)
@@ -104,8 +102,30 @@ fun InstagramNavigation(
             //SearchScreen(navController = navController)
         }
         composable(Screen.Create.route) {
-            //CreateScreen(navController = navController)
+            CreateContentScreen(navController = navController)
         }
+    }
+}
+
+private fun NavGraphBuilder.contentCreationGraph(
+    navController: NavController
+) {
+    composable(Screen.CreateContent.route) {
+        CreateContentScreen(navController = navController)
+    }
+
+    composable(Screen.CreatePost.route) {
+        CreatePostScreen(
+            navController = navController,
+            postsViewModel = hiltViewModel()
+        )
+    }
+
+    composable(Screen.CreateStory.route) {
+        CreateStoryScreen(
+            navController = navController,
+            storiesViewModel = hiltViewModel()
+        )
     }
 }
 
@@ -165,7 +185,10 @@ fun InstagramBottomBar(
                     }
 
                     navController.navigate(finalRoute) {
-                        popUpTo(navController.graph.startDestinationId)
+                        // Если это экран создания, очищаем бэкстек до главного экрана
+                        if (item.route == Screen.Create.route) {
+                            popUpTo(navController.graph.startDestinationId)
+                        }
                         launchSingleTop = true
                     }
                 },

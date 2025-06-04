@@ -13,12 +13,13 @@ class StoryRepository @Inject constructor(
 ) {
     private val storiesCollection = firestore.collection("stories")
 
-    suspend fun createStory(story: Story) {
+    suspend fun createStory(story: Story): Story {
         try {
             storiesCollection
                 .document(story.storyUuid.toString())
                 .set(story)
                 .await()
+            return story
         } catch (e: Exception) {
             throw Exception("Failed to create story", e)
         }

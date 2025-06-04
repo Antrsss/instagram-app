@@ -54,16 +54,25 @@ android {
 }
 
 dependencies {
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.0")
+
     implementation(project(":serialization-library"))
 
     implementation("androidx.compose.foundation:foundation:1.3.1")
     implementation("androidx.navigation:navigation-compose:2.5.3")
+
+    implementation("androidx.camera:camera-core:1.3.0")
+    implementation("androidx.camera:camera-camera2:1.3.0")
+    implementation("androidx.camera:camera-lifecycle:1.3.0")
+    implementation("androidx.camera:camera-view:1.3.0")
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.7.3"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-analytics")
+
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
 
     // Kotlin Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
@@ -76,6 +85,7 @@ dependencies {
     // Dagger-Hilt
     implementation("com.google.dagger:hilt-android:2.48")
     implementation(libs.transport.runtime)
+    implementation(libs.androidx.scenecore)
     kapt("com.google.dagger:hilt-compiler:2.48")
     implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
 

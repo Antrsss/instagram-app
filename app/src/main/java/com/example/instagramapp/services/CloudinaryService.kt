@@ -1,42 +1,51 @@
 package com.example.instagramapp.services
 
+import android.content.Context
+import android.net.Uri
 import com.cloudinary.Cloudinary
 import com.cloudinary.utils.ObjectUtils
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import javax.inject.Inject
 
-class CloudinaryService @Inject constructor(private val cloudinary: Cloudinary) {
-
-    suspend fun uploadImage(imageUri: String): String = withContext(Dispatchers.IO) {
+class CloudinaryService @Inject constructor(
+    private val cloudinary: Cloudinary,
+    @ApplicationContext private val context: Context
+) {
+    suspend fun uploadImage(uri: Uri): String = withContext(Dispatchers.IO) {
         try {
-            val uploadResult = cloudinary.uploader().upload(
-                imageUri,
-                ObjectUtils.emptyMap()
+            val inputStream = context.contentResolver.openInputStream(uri)
+                ?: throw IOException("Cannot open input stream")
+
+            val params = mapOf(
+                "folder" to "instagram_posts",
+                "resource_type" to "image",
+                "public_id" to "post_${System.currentTimeMillis()}"
             )
-            uploadResult["secure_url"] as String
+
+            val uploadResult = cloudinary.uploader().upload(inputStream, params)
+            uploadResult["secure_url"] as? String
+                ?: throw Exception("Cloudinary returned null URL")
         } catch (e: Exception) {
-            throw CloudinaryUploadException("Failed to upload image", e)
+            throw Exception("Upload failed: ${e.message}")
         }
     }
 
     suspend fun deleteImage(imageUrl: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val publicId = extractPublicIdFromUrl(imageUrl)
-
-            if (publicId.isNullOrEmpty()) {
-                throw IllegalArgumentException("Invalid Cloudinary URL")
-            }
+                ?: throw IllegalArgumentException("Invalid Cloudinary URL")
 
             val deleteResult = cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap())
-            "ok" == deleteResult["result"] as String
+            "ok" == deleteResult["result"] as? String
         } catch (e: Exception) {
-            throw CloudinaryDeleteException("Failed to delete image", e)
+            throw Exception("Failed to delete image: ${e.message}")
         }
     }
 
     private fun extractPublicIdFromUrl(url: String): String? {
-        // Пример URL: https://res.cloudinary.com/demo/image/upload/v1234567/sample.jpg
         val pattern = Regex("upload/(?:v\\d+/)?(.+?)(?:\\.[^.]+)?$")
         return pattern.find(url)?.groupValues?.get(1)
     }

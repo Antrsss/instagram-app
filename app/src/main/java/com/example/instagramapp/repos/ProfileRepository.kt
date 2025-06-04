@@ -1,5 +1,6 @@
 package com.example.instagramapp.repos
 
+import android.net.Uri
 import com.example.instagramapp.models.Profile
 import com.example.instagramapp.services.CloudinaryService
 import com.google.firebase.firestore.FirebaseFirestore
@@ -47,7 +48,7 @@ class ProfileRepository @Inject constructor(
         }
     }
 
-    suspend fun updateProfilePhoto(userUid: String, photoUri: String): Result<String> {
+    suspend fun updateProfilePhoto(userUid: String, photoUri: Uri): Result<String> {
         return try {
             val photoUrl = cloudinaryService.uploadImage(photoUri)
             profilesCollection.document(userUid).update("photoUrl", photoUrl).await()

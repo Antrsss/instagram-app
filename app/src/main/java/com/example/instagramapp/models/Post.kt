@@ -1,13 +1,20 @@
 package com.example.instagramapp.models
 
+import android.net.Uri
 import java.util.Date
-import java.util.UUID
 
 data class Post(
     val authorUid: String,
-    val creationTime: Date,
-    val description: String,
-    val imageUrls: List<String> = emptyList(),
-    val likes: Int = 0,
-    val postUuid: UUID = UUID.randomUUID(),
-)
+    val description: String?,
+    val imageUris: List<Uri> = emptyList(), // Для работы с локальными Uri
+    val imageUrls: List<String> = emptyList(), // Для хранения URL в Cloudinary
+    val likes: Int,
+    val postUuid: String = "",
+    val creationTime: Date? = null
+) {
+    fun getImagesToDisplay(): List<Any> = when {
+        imageUrls.isNotEmpty() -> imageUrls
+        imageUris.isNotEmpty() -> imageUris
+        else -> emptyList()
+    }
+}

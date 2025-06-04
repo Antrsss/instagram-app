@@ -1,5 +1,6 @@
 package com.example.instagramapp.di
 
+import android.content.Context
 import com.example.instagramapp.repos.CommentRepository
 import com.example.instagramapp.repos.PostRepository
 import com.example.instagramapp.repos.ProfileRepository
@@ -13,6 +14,7 @@ import com.google.firebase.ktx.Firebase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -35,8 +37,12 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun providePostRepository(firestore: FirebaseFirestore, cloudinaryService: CloudinaryService): PostRepository {
-        return PostRepository(firestore, cloudinaryService)
+    fun providePostRepository(
+        firestore: FirebaseFirestore,
+        cloudinaryService: CloudinaryService,
+        @ApplicationContext context: Context
+    ): PostRepository {
+        return PostRepository(firestore, cloudinaryService, context)
     }
 
     @Provides

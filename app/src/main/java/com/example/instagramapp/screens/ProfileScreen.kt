@@ -98,7 +98,7 @@ fun ProfileScreen(
         imagePicker = imagePicker,
         onImagePicked = { uri ->
             uri?.let {
-                profileViewModel.updateProfilePhoto(userId, it.toString())
+                profileViewModel.updateProfilePhoto(userId, it)
             }
         }
     )
@@ -567,7 +567,7 @@ private fun PostsGrid(
         ) {
             items(posts.size) { index -> // Используем posts.size и индекс
                 val post = posts[index]
-                val firstImageUrl = post.imageUrls.firstOrNull()
+                val firstImageUrl = post.imageUris.firstOrNull()
 
                 Box(
                     modifier = Modifier

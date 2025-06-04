@@ -1,22 +1,25 @@
 package com.example.instagramapp.repos
 
+import android.content.Context
+import android.net.Uri
 import com.example.instagramapp.models.Comment
-import com.google.firebase.firestore.FirebaseFirestore
 import com.example.instagramapp.models.Post
 import com.example.instagramapp.services.CloudinaryService
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.toObject
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import java.util.UUID
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import java.util.Date
+import java.util.*
 import javax.inject.Inject
 
 class PostRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val cloudinaryService: CloudinaryService
+    private val cloudinaryService: CloudinaryService,
+    @ApplicationContext private val context: Context
 ) {
     private val postsCollection = firestore.collection("posts")
     private val commentsCollection = firestore.collection("comments")
@@ -25,17 +28,19 @@ class PostRepository @Inject constructor(
 
     suspend fun createPost(post: Post): Result<Post> = withContext(Dispatchers.IO) {
         try {
-            val uploadedImageUrls = post.imageUrls.map { url ->
-                cloudinaryService.uploadImage(url)
+            // Загружаем Uri изображений в Cloudinary
+            val uploadedUrls = post.imageUris.map { uri ->
+                cloudinaryService.uploadImage(uri)
             }
 
             val postToCreate = post.copy(
-                imageUrls = uploadedImageUrls,
-                postUuid = UUID.randomUUID(),
+                imageUris = emptyList(), // Очищаем Uri, так как сохраняем только URLs
+                imageUrls = uploadedUrls, // Сохраняем загруженные URL
+                postUuid = UUID.randomUUID().toString(),
                 creationTime = Date()
             )
 
-            postsCollection.document(postToCreate.postUuid.toString())
+            postsCollection.document(postToCreate.postUuid)
                 .set(postToCreate)
                 .await()
 
@@ -45,9 +50,17 @@ class PostRepository @Inject constructor(
         }
     }
 
-    suspend fun getPost(postUuid: UUID): Result<Post> = withContext(Dispatchers.IO) {
+    suspend fun uploadImageToCloudinary(uri: Uri): String = withContext(Dispatchers.IO) {
         try {
-            val snapshot = postsCollection.document(postUuid.toString()).get().await()
+            cloudinaryService.uploadImage(uri)
+        } catch (e: Exception) {
+            throw Exception("Failed to upload image: ${e.message}")
+        }
+    }
+
+    suspend fun getPost(postUuid: String): Result<Post> = withContext(Dispatchers.IO) {
+        try {
+            val snapshot = postsCollection.document(postUuid).get().await()
             val post = snapshot.toObject<Post>()
                 ?: throw Exception("Post not found")
 
@@ -72,16 +85,20 @@ class PostRepository @Inject constructor(
         }
     }
 
-    suspend fun deletePost(postUuid: UUID): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun deletePost(postUuid: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val post = getPost(postUuid).getOrThrow()
 
+            // Удаляем изображения из Cloudinary (используем imageUrls)
             post.imageUrls.forEach { imageUrl ->
-                cloudinaryService.deleteImage(imageUrl)
+                try {
+                    cloudinaryService.deleteImage(imageUrl)
+                } catch (e: Exception) {
+                    println("Failed to delete image from Cloudinary: ${e.message}")
+                }
             }
 
-            postsCollection.document(postUuid.toString()).delete().await()
-
+            postsCollection.document(postUuid).delete().await()
             deletePostRelatedData(postUuid)
 
             Result.success(Unit)
@@ -90,29 +107,29 @@ class PostRepository @Inject constructor(
         }
     }
 
-    public suspend fun deletePostRelatedData(postUuid: UUID) {
-        likesCollection.whereEqualTo("postUuid", postUuid.toString())
+    private suspend fun deletePostRelatedData(postUuid: String) {
+        likesCollection.whereEqualTo("postUuid", postUuid)
             .get()
             .await()
             .documents
             .forEach { it.reference.delete().await() }
 
-        commentsCollection.whereEqualTo("postUuid", postUuid.toString())
+        commentsCollection.whereEqualTo("postUuid", postUuid)
             .get()
             .await()
             .documents
             .forEach { it.reference.delete().await() }
 
-        bookmarksCollection.whereEqualTo("postUuid", postUuid.toString())
+        bookmarksCollection.whereEqualTo("postUuid", postUuid)
             .get()
             .await()
             .documents
             .forEach { it.reference.delete().await() }
     }
 
-    suspend fun likePost(postUuid: UUID, userId: String): Result<Int> = withContext(Dispatchers.IO) {
+    suspend fun likePost(postUuid: String, userId: String): Result<Int> = withContext(Dispatchers.IO) {
         try {
-            val postRef = postsCollection.document(postUuid.toString())
+            val postRef = postsCollection.document(postUuid)
             val likeDocRef = likesCollection.document("${postUuid}_$userId")
 
             firestore.runTransaction { transaction ->
@@ -125,7 +142,7 @@ class PostRepository @Inject constructor(
                     post.likes - 1
                 } else {
                     transaction.set(likeDocRef, mapOf(
-                        "postUuid" to postUuid.toString(),
+                        "postUuid" to postUuid,
                         "userId" to userId,
                         "timestamp" to FieldValue.serverTimestamp()
                     ))
@@ -140,11 +157,11 @@ class PostRepository @Inject constructor(
         }
     }
 
-    suspend fun saveToBookmarks(postUuid: UUID, userId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun saveToBookmarks(postUuid: String, userId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             bookmarksCollection.document("${postUuid}_$userId")
                 .set(mapOf(
-                    "postUuid" to postUuid.toString(),
+                    "postUuid" to postUuid,
                     "userId" to userId,
                     "timestamp" to FieldValue.serverTimestamp()
                 ))
@@ -156,7 +173,7 @@ class PostRepository @Inject constructor(
         }
     }
 
-    suspend fun removeFromBookmarks(postUuid: UUID, userId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun removeFromBookmarks(postUuid: String, userId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             bookmarksCollection.document("${postUuid}_$userId")
                 .delete()
@@ -168,11 +185,11 @@ class PostRepository @Inject constructor(
         }
     }
 
-    suspend fun addComment(postUuid: UUID, comment: Comment): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun addComment(postUuid: String, comment: Comment): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             commentsCollection.add(comment).await()
 
-            postsCollection.document(postUuid.toString())
+            postsCollection.document(postUuid)
                 .update("commentsCount", FieldValue.increment(1))
                 .await()
 
@@ -182,10 +199,10 @@ class PostRepository @Inject constructor(
         }
     }
 
-    suspend fun getPostComments(postUuid: UUID): Result<List<Comment>> = withContext(Dispatchers.IO) {
+    suspend fun getPostComments(postUuid: String): Result<List<Comment>> = withContext(Dispatchers.IO) {
         try {
             val snapshot = commentsCollection
-                .whereEqualTo("postUuid", postUuid.toString())
+                .whereEqualTo("postUuid", postUuid)
                 .orderBy("timestamp", Query.Direction.DESCENDING)
                 .get()
                 .await()
