@@ -54,6 +54,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.accompanist:accompanist-pager:0.28.0")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.0")
 
     implementation(project(":serialization-library"))

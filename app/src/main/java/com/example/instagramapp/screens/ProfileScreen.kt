@@ -1,5 +1,6 @@
 package com.example.instagramapp.screens
 
+import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -91,11 +92,13 @@ fun ProfileScreen(
     postsViewModel: PostsViewModel = hiltViewModel()
 ) {
     val uiState by profileViewModel.profileUiState.collectAsState()
-    val posts by postsViewModel.userPosts.collectAsState()
+    val posts by profileViewModel.posts.collectAsState()
     val authedUser = authViewModel.currentUser
     val isFollowing by profileViewModel.isFollowing.collectAsState()
+
     LaunchedEffect(userId) {
         postsViewModel.loadUserPosts(userId)
+        profileViewModel.checkIfUserIsFollowed(authedUser!!.uid, userId)
     }
     LaunchedEffect(posts) {
         Log.d("ProfileScreen", "Posts loaded: ${posts.size}")
@@ -105,7 +108,6 @@ fun ProfileScreen(
     }
 
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("Posts")
@@ -151,7 +153,6 @@ fun ProfileScreen(
         topBar = {
             ProfileTopBar(
                 username = (uiState as? ProfileUiState.Loaded)?.profile?.username ?: "",
-                onBackClick = { navController.popBackStack() },
                 onSettingsClick = { /* Открыть меню настроек */ }
             )
         }
@@ -179,9 +180,11 @@ fun ProfileScreen(
                             ProfileHeader(
                                 profile = profile,
                                 postCount = posts.size,
-                                followerCount = profile.followersCount ?: 0,
-                                followingCount = profile.followingCount ?: 0,
-                                onEditProfileClick = { showEditDialog = true },
+                                followerCount = profile.followersCount,
+                                followingCount = profile.followingCount,
+                                onEditProfileClick = {
+                                    Log.d("PostsVM", "EditBtnClicked")
+                                    showEditDialog = true },
                                 onFollowBtnClick = {
                                     authedUser?.uid?.let { currentUserUid ->
                                         profileViewModel.followUser(currentUserUid, userId)
@@ -266,6 +269,10 @@ fun ProfileScreen(
             )
         }
     }
+
+    if (showImagePicker) {
+
+    }
 }
 
 @Composable
@@ -294,24 +301,49 @@ private fun PostsGrid(
             contentPadding = PaddingValues(1.dp)
         ) {
             items(posts) { post ->
-                post.imageUrls.firstOrNull()?.let { imageUrl ->
+                // Используем getImagesToDisplay() для получения списка изображений
+                post.getImagesToDisplay().firstOrNull()?.let { image ->
                     Box(
                         modifier = Modifier
                             .aspectRatio(1f)
                             .padding(1.dp)
                             .clickable {
+                                // Переход на экран поста с передачей postUuid
                                 navController.navigate("post/${post.postUuid}")
                             }
                     ) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(imageUrl)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "Post image",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                        when (image) {
+                            is String -> {
+                                // Если это URL строки
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(image)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Post image",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                            is Uri -> {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(image)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Post image",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                            else -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.LightGray)
+                                )
+                            }
+                        }
                     }
                 } ?: Box(
                     modifier = Modifier
@@ -327,7 +359,6 @@ private fun PostsGrid(
 @Composable
 private fun ProfileTopBar(
     username: String,
-    onBackClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     TopAppBar(
@@ -416,16 +447,14 @@ private fun ProfileHeader(
     ) {
         Button(
             onClick = {
-                when (isFollowing) {
-                    true -> onUnfollowBtnClicked
-                    false -> {
-                        if (isCurrentUser) {
-                            onEditProfileClick
-                        } else {
-                            onFollowBtnClick
-                        }
-                    }
-                    null -> {}
+                if (isCurrentUser) {
+                    onEditProfileClick()
+                } else if (isFollowing == true) {
+                    Log.d("PostsVM", "Is following")
+                    onUnfollowBtnClicked()
+                } else {
+                    Log.d("PostsVM", "Is not following")
+                    onFollowBtnClick()
                 }
             },
             modifier = Modifier
@@ -678,56 +707,3 @@ fun EditProfileDialog(
         }
     )
 }
-/*
-
-@Composable
-private fun PostsGrid(
-    posts: List<Post>,
-    navController: NavController
-) {
-    val context = LocalContext.current
-
-    if (posts.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "No posts yet",
-                color = Color.Gray
-            )
-        }
-    } else {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(1.dp)
-        ) {
-            items(posts.size) { index -> // Используем posts.size и индекс
-                val post = posts[index]
-                val firstImageUrl = post.imageUris.firstOrNull()
-
-                Box(
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .padding(1.dp)
-                        .clickable {
-                            navController.navigate("post/${post.postUuid}")
-                        }
-                ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(firstImageUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Post image",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-            }
-        }
-    }
-}*/

@@ -52,9 +52,9 @@ object AppModule {
     fun providePostRepository(
         firestore: FirebaseFirestore,
         storageService: FirebaseStorageService,
-        @ApplicationContext context: Context
+        userRepository: UserRepository
     ): PostRepository {
-        return PostRepository(firestore, storageService)
+        return PostRepository(firestore, storageService, userRepository)
     }
 
     @Provides

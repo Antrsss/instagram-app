@@ -10,10 +10,11 @@ data class Post(
     @Exclude val imageUris: List<Uri> = emptyList(),
     val imageUrls: List<String> = emptyList(),
     val likes: Int = 0,
+    val likedByUser: Boolean = false,
     val postUuid: String = "",
     val creationTime: Date? = null
 ) {
-    constructor() : this("", null, emptyList(), emptyList(), 0, "", null)
+    constructor() : this("", null, emptyList(), emptyList(), 0, false,"", null)
 
     @Exclude
     fun getImagesToDisplay(): List<Any> = when {

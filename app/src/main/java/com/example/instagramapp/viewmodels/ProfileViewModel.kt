@@ -36,7 +36,6 @@ class ProfileViewModel @Inject constructor(
         _profileUiState.value = ProfileUiState.Loading
         viewModelScope.launch {
             try {
-                // Загружаем профиль
                 profileRepository.getProfile(userUid)
                     .onSuccess { profile ->
                         _profileUiState.value = ProfileUiState.Loaded(profile)
@@ -54,7 +53,6 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    // Добавьте этот метод для подписки на обновления постов
     fun subscribeToUserPosts(userId: String) {
         viewModelScope.launch {
             postRepository.getUserPostsLive(userId)
@@ -107,10 +105,8 @@ class ProfileViewModel @Inject constructor(
         _profileUiState.value = ProfileUiState.Loading
         viewModelScope.launch {
             try {
-                // Загружаем фото в Firebase Storage
                 val photoUrl = storageService.uploadProfilePhoto(userUid, photoUri)
 
-                // Обновляем URL фото в профиле через репозиторий
                 profileRepository.updateProfilePhoto(userUid, photoUri)
                     .onSuccess {
                         val currentProfile = (_profileUiState.value as? ProfileUiState.Loaded)?.profile

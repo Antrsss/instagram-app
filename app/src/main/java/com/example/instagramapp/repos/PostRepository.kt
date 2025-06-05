@@ -19,7 +19,8 @@ import javax.inject.Inject
 
 class PostRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val storageService: FirebaseStorageService
+    private val storageService: FirebaseStorageService,
+    private val userRepository: UserRepository
 ) {
     private val postsCollection = firestore.collection("posts")
     private val commentsCollection = firestore.collection("comments")
@@ -28,28 +29,26 @@ class PostRepository @Inject constructor(
 
     suspend fun createPost(post: Post): Result<Post> = withContext(Dispatchers.IO) {
         try {
-            // 1. Проверяем, что imageUrls не пустые
             if (post.imageUrls.isEmpty()) {
                 throw IllegalArgumentException("Post must have at least one image URL")
             }
 
-            // 2. Создаем документ с ВСЕМИ полями
             val postData = hashMapOf(
                 "authorUid" to post.authorUid,
                 "description" to post.description,
                 "imageUrls" to post.imageUrls, // Важно: сохраняем URLs!
                 "likes" to post.likes,
+                "likedBy" to emptyList<String>(),
                 "postUuid" to post.postUuid,
                 "creationTime" to post.creationTime
             )
 
-            // 3. Сохраняем в Firestore
             postsCollection.document(post.postUuid)
-                .set(postData) // Используем set() вместо прямого сохранения объекта
+                .set(postData)
                 .await()
 
             Log.d("PostRepository", "Post saved with URLs: ${post.imageUrls}")
-            Result.success(post)
+            Result.success(post.copy(likes = 0, likedByUser = false))
         } catch (e: Exception) {
             Log.e("PostRepository", "Error saving post", e)
             Result.failure(e)
@@ -59,8 +58,14 @@ class PostRepository @Inject constructor(
     suspend fun getPost(postUuid: String): Result<Post> = withContext(Dispatchers.IO) {
         try {
             val snapshot = postsCollection.document(postUuid).get().await()
+            val likedBy = snapshot.get("likedBy") as? List<String> ?: emptyList()
+            val isLiked = userRepository.currentUser?.uid?.let { likedBy.contains(it) } ?: false
+
             val post = snapshot.toObject<Post>()
-                ?.copy(postUuid = snapshot.id)
+                ?.copy(
+                    postUuid = snapshot.id,
+                    likedByUser = isLiked
+                )
                 ?: throw Exception("Post not found")
 
             Result.success(post)
@@ -113,7 +118,6 @@ class PostRepository @Inject constructor(
         }
     }
 
-    // Остальные методы остаются без изменений
     suspend fun deletePost(postUuid: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val post = getPost(postUuid).getOrThrow()
@@ -174,6 +178,54 @@ class PostRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    suspend fun updatePost(updatedPost: Post): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val updateData = mutableMapOf<String, Any>().apply {
+                updatedPost.description?.let { put("description", it) }
+                put("imageUrls", updatedPost.imageUrls)
+            }
+
+            postsCollection.document(updatedPost.postUuid)
+                .update(updateData)
+                .await()
+
+            Log.d("PostRepository", "Post ${updatedPost.postUuid} updated successfully")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("PostRepository", "Error updating post ${updatedPost.postUuid}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun toggleLike(postId: String, userId: String) {
+        val postRef = firestore.collection("posts").document(postId)
+        val likeRef = likesCollection.document("${postId}_$userId")
+
+        firestore.runTransaction { transaction ->
+            val postSnapshot = transaction.get(postRef)
+            val likeSnapshot = transaction.get(likeRef)
+
+            val currentLikes = postSnapshot.getLong("likes") ?: 0
+            val isLiked = likeSnapshot.exists()
+
+            if (isLiked) {
+                // Удаляем лайк, если он уже существует
+                transaction.delete(likeRef)
+                transaction.update(postRef, "likes", currentLikes - 1)
+                transaction.update(postRef, "likedBy", FieldValue.arrayRemove(userId))
+            } else {
+                // Добавляем лайк, если его нет
+                transaction.set(likeRef, mapOf(
+                    "postId" to postId,
+                    "userId" to userId,
+                    "timestamp" to FieldValue.serverTimestamp()
+                ))
+                transaction.update(postRef, "likes", currentLikes + 1)
+                transaction.update(postRef, "likedBy", FieldValue.arrayUnion(userId))
+            }
+        }.await()
     }
 
     suspend fun saveToBookmarks(postUuid: String, userId: String): Result<Unit> = withContext(Dispatchers.IO) {

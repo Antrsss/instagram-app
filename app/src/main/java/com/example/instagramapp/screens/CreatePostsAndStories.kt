@@ -161,8 +161,6 @@ fun CreatePostScreen(
     navController: NavController,
     modifier: Modifier = Modifier
 ) {
-    RequestPermissions()
-
     val context = LocalContext.current
     val uiState by postsViewModel.uiState.collectAsState()
     val selectedImages by postsViewModel.selectedImages.collectAsState()
@@ -574,19 +572,3 @@ fun CreateStoryScreen(
 }
 
 const val REQUEST_CODE_GALLERY = 1003
-
-@Composable
-fun RequestPermissions() {
-    val context = LocalContext.current
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (!isGranted) {
-            Toast.makeText(context, "Permission needed to access photos", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        permissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
-    }
-}

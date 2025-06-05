@@ -33,6 +33,9 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile/{userId}") {
         fun createRoute(userId: String) = "profile/$userId"
     }
+    object Post : Screen("post/{postId}") {
+        fun createRoute(postId: String) = "post/$postId"
+    }
     object Search : Screen("search")
     object Create : Screen("create")
     object CreatePost : Screen("create/post")
@@ -95,6 +98,18 @@ fun InstagramNavigation(
             val userId = backStackEntry.arguments?.getString("userId") ?: ""
             ProfileScreen(
                 userId = userId,
+                navController = navController
+            )
+        }
+        composable(
+            route = Screen.Post.route,
+            arguments = listOf(navArgument("postId") {
+                type = NavType.StringType
+            })
+        ) { backStackEntry ->
+            val postId = backStackEntry.arguments?.getString("postId") ?: ""
+            PostScreen(
+                postId = postId,
                 navController = navController
             )
         }
