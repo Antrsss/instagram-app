@@ -100,7 +100,7 @@ fun ProfileScreen(
 
     LaunchedEffect(userId) {
         postsViewModel.loadUserPosts(userId)
-        profileViewModel.checkIfUserIsFollowed(authedUser!!.uid, userId)
+        profileViewModel.checkFollowStatus(authedUser!!.uid, userId)
     }
     LaunchedEffect(posts) {
         Log.d("ProfileScreen", "Posts loaded: ${posts.size}")
@@ -281,10 +281,6 @@ fun ProfileScreen(
             )
         }
     }
-
-    if (showImagePicker) {
-
-    }
 }
 
 @Composable
@@ -313,20 +309,17 @@ private fun PostsGrid(
             contentPadding = PaddingValues(1.dp)
         ) {
             items(posts) { post ->
-                // Используем getImagesToDisplay() для получения списка изображений
                 post.getImagesToDisplay().firstOrNull()?.let { image ->
                     Box(
                         modifier = Modifier
                             .aspectRatio(1f)
                             .padding(1.dp)
                             .clickable {
-                                // Переход на экран поста с передачей postUuid
                                 navController.navigate("post/${post.postUuid}")
                             }
                     ) {
                         when (image) {
                             is String -> {
-                                // Если это URL строки
                                 AsyncImage(
                                     model = ImageRequest.Builder(context)
                                         .data(image)
@@ -417,7 +410,8 @@ private fun ProfileHeader(
                 .clip(CircleShape)
                 .clickable(
                     enabled = isCurrentUser,
-                    onClick = onPhotoClick)
+                    onClick = onPhotoClick
+                )
                 .background(Color.LightGray, CircleShape)
         ) {
             if (profile.photoUrl != null) {
@@ -461,30 +455,44 @@ private fun ProfileHeader(
     ) {
         Button(
             onClick = {
-                if (isCurrentUser) {
-                    onEditProfileClick()
-                } else if (isFollowing == true) {
-                    Log.d("PostsVM", "Is following")
-                    onUnfollowBtnClicked()
-                } else {
-                    Log.d("PostsVM", "Is not following")
-                    onFollowBtnClick()
+                when {
+                    isCurrentUser -> onEditProfileClick()
+                    isFollowing == true -> onUnfollowBtnClicked()
+                    isFollowing == null -> {} // Уже отправили запрос
+                    else -> onFollowBtnClick() // Не подписаны
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(36.dp),
             shape = RoundedCornerShape(6.dp),
-            colors = if (isCurrentUser || isFollowing == true) ButtonDefaults.buttonColors(
-                containerColor = colorScheme.surfaceVariant,
-                contentColor = colorScheme.onSurface
-            ) else ButtonDefaults.buttonColors(
-                containerColor = Color.Green,
-                contentColor = Color.White
-            )
+            colors = when {
+                isCurrentUser -> ButtonDefaults.buttonColors(
+                    containerColor = colorScheme.surfaceVariant,
+                    contentColor = colorScheme.onSurface
+                )
+                isFollowing == true -> ButtonDefaults.buttonColors(
+                    containerColor = colorScheme.surfaceVariant,
+                    contentColor = colorScheme.onSurface
+                )
+                isFollowing == null -> ButtonDefaults.buttonColors(
+                    containerColor = Color.Gray,
+                    contentColor = Color.White
+                )
+                else -> ButtonDefaults.buttonColors(
+                    containerColor = Color.Green,
+                    contentColor = Color.White
+                )
+            }
         ) {
             Text(
-                text = if (isCurrentUser) "Edit Profile" else if (profile.isPrivate) "Request" else "Follow",
+                text = when {
+                    isCurrentUser -> "Edit Profile"
+                    isFollowing == true -> "Following"
+                    isFollowing == null -> "Requested"
+                    profile.isPrivate -> "Request"
+                    else -> "Follow"
+                },
                 fontSize = 14.sp,
             )
         }

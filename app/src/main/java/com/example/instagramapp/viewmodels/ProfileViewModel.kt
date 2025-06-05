@@ -101,7 +101,6 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    // ProfileViewModel.kt
     suspend fun updateProfilePhoto(userUid: String, photoUri: Uri): Boolean {
         return try {
             _profileUiState.value = ProfileUiState.Loading
@@ -153,39 +152,52 @@ class ProfileViewModel @Inject constructor(
 
     fun followUser(currentUserUid: String, targetUserUid: String) {
         viewModelScope.launch {
-            profileRepository.followUser(currentUserUid, targetUserUid)
-                .onSuccess {
-                    val current = (_profileUiState.value as? ProfileUiState.Loaded)?.profile
-                    current?.let {
-                        _profileUiState.value = ProfileUiState.Loaded(
-                            it.copy(followersCount = (it.followersCount ?: 0) + 1),
-                            "Followed successfully"
-                        )
+            // 1. Получаем профиль цели
+            val targetProfile = profileRepository.getProfile(targetUserUid).getOrNull()
+
+            // 2. Проверяем, является ли профиль приватным
+            if (targetProfile?.isPrivate == true) {
+                // Для приватного профиля - отправляем запрос
+                profileRepository.sendFollowRequest(currentUserUid, targetUserUid)
+                    .onSuccess {
+                        _isFollowing.value = null // Состояние "запрос отправлен"
+                        _profileUiState.value = _profileUiState.value.copyWithMessage("Follow request sent")
                     }
-                }
-                .onFailure { error ->
-                    _profileUiState.value = ProfileUiState.Error(
-                        error.message ?: "Failed to follow user"
-                    )
-                }
+                    .onFailure { e ->
+                        _profileUiState.value = ProfileUiState.Error(e.message ?: "Failed to send request")
+                    }
+            } else {
+                // Для публичного профиля - подписываемся сразу
+                profileRepository.followUser(currentUserUid, targetUserUid)
+                    .onSuccess {
+                        _isFollowing.value = true
+                        loadProfile(targetUserUid) // Обновляем данные профиля
+                        _profileUiState.value = _profileUiState.value.copyWithMessage("Followed successfully")
+                    }
+                    .onFailure { e ->
+                        _profileUiState.value = ProfileUiState.Error(e.message ?: "Failed to follow")
+                    }
+            }
         }
     }
 
-    fun checkIfUserIsFollowed(currentUserUid: String, targetUserUid: String) {
+    fun checkFollowStatus(currentUserUid: String, targetUserUid: String) {
         viewModelScope.launch {
-            val isFollowed = profileRepository.checkIfFollow(currentUserUid, targetUserUid)
-            _isFollowing.value = isFollowed
+            _isFollowing.value = profileRepository.getFollowStatus(currentUserUid, targetUserUid)
         }
     }
 
     fun unfollow(currentUserUid: String, targetUserUid: String) {
         viewModelScope.launch {
-            try {
-                profileRepository.unfollowUser(currentUserUid, targetUserUid)
-                _isFollowing.value = false
-            } catch (e: Exception) {
-                // Обработка ошибки при необходимости
-            }
+            profileRepository.unfollowUser(currentUserUid, targetUserUid)
+                .onSuccess {
+                    _isFollowing.value = false
+                    loadProfile(targetUserUid)
+                    _profileUiState.value = _profileUiState.value.copyWithMessage("Unfollowed successfully")
+                }
+                .onFailure { e ->
+                    _profileUiState.value = ProfileUiState.Error(e.message ?: "Failed to unfollow")
+                }
         }
     }
 }
