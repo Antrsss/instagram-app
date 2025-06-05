@@ -1,3 +1,4 @@
+// ImagePicker.kt
 package com.example.instagramapp.utils
 
 import android.content.Context
@@ -9,12 +10,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 
+// ImagePicker.kt
 class ImagePicker(private val context: Context) {
     var onImagePicked: ((Uri?) -> Unit)? = null
+    private var isPicking: Boolean = false
 
-    fun pickImage(onImagePicked: (Uri?) -> Unit) {
-        this.onImagePicked = onImagePicked
-        // Реальная реализация будет в Composable-функции
+    fun pickImage() {
+        if (!isPicking) {
+            isPicking = true
+            onImagePicked?.invoke(null)
+        }
+    }
+
+    fun reset() {
+        isPicking = false
     }
 }
 
@@ -29,14 +38,16 @@ fun RegisterImagePicker(
     imagePicker: ImagePicker,
     onImagePicked: (Uri?) -> Unit
 ) {
-    val launcher = rememberLauncherForActivityResult(
+    val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
-        onResult = { uri -> onImagePicked(uri) }
+        onResult = { uri ->
+            onImagePicked(uri)
+        }
     )
 
     LaunchedEffect(Unit) {
-        imagePicker.onImagePicked = { uri ->
-            onImagePicked(uri)
+        imagePicker.onImagePicked = {
+            galleryLauncher.launch("image/*")
         }
     }
 }

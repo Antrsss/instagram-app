@@ -81,6 +81,8 @@ import com.example.instagramapp.viewmodels.AuthViewModel
 import com.example.instagramapp.viewmodels.PostsViewModel
 import com.example.instagramapp.viewmodels.ProfileUiState
 import com.example.instagramapp.viewmodels.ProfileViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Composable
@@ -115,12 +117,22 @@ fun ProfileScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var showImagePicker by remember { mutableStateOf(false) }
     val imagePicker = rememberImagePicker()
+    var isImageLoading by remember { mutableStateOf(false) }
 
     RegisterImagePicker(
         imagePicker = imagePicker,
         onImagePicked = { uri ->
             uri?.let {
-                profileViewModel.updateProfilePhoto(userId, it)
+                isImageLoading = true
+                CoroutineScope(Dispatchers.Main).launch {
+                    val success = profileViewModel.updateProfilePhoto(userId, it)
+                    isImageLoading = false
+                    imagePicker.reset()
+
+                    if (success) {
+                        Toast.makeText(context, "Photo updated", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
         }
     )
@@ -144,7 +156,7 @@ fun ProfileScreen(
 
     if (showImagePicker) {
         LaunchedEffect(showImagePicker) {
-            imagePicker.pickImage { }
+            imagePicker.pickImage()
             showImagePicker = false
         }
     }
@@ -403,7 +415,9 @@ private fun ProfileHeader(
             modifier = Modifier
                 .size(90.dp)
                 .clip(CircleShape)
-                .clickable(onClick = onPhotoClick)
+                .clickable(
+                    enabled = isCurrentUser,
+                    onClick = onPhotoClick)
                 .background(Color.LightGray, CircleShape)
         ) {
             if (profile.photoUrl != null) {

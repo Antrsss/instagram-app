@@ -101,32 +101,19 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun updateProfilePhoto(userUid: String, photoUri: Uri) {
-        _profileUiState.value = ProfileUiState.Loading
-        viewModelScope.launch {
-            try {
-                val photoUrl = storageService.uploadProfilePhoto(userUid, photoUri)
-
-                profileRepository.updateProfilePhoto(userUid, photoUri)
-                    .onSuccess {
-                        val currentProfile = (_profileUiState.value as? ProfileUiState.Loaded)?.profile
-                        currentProfile?.let {
-                            _profileUiState.value = ProfileUiState.Loaded(
-                                it.copy(photoUrl = photoUrl),
-                                "Photo updated successfully"
-                            )
-                        }
-                    }
-                    .onFailure { error ->
-                        _profileUiState.value = ProfileUiState.Error(
-                            error.message ?: "Failed to update profile photo"
-                        )
-                    }
-            } catch (e: Exception) {
-                _profileUiState.value = ProfileUiState.Error(
-                    e.message ?: "Failed to upload photo"
-                )
-            }
+    // ProfileViewModel.kt
+    suspend fun updateProfilePhoto(userUid: String, photoUri: Uri): Boolean {
+        return try {
+            _profileUiState.value = ProfileUiState.Loading
+            val photoUrl = storageService.uploadProfilePhoto(userUid, photoUri)
+            profileRepository.updateProfilePhoto(userUid, photoUri).getOrThrow()
+            loadProfile(userUid) // Перезагружаем профиль
+            true // Успех
+        } catch (e: Exception) {
+            _profileUiState.value = ProfileUiState.Error(e.message ?: "Failed to update photo")
+            false // Ошибка
+        } finally {
+            _profileUiState.value = _profileUiState.value.copyWithMessage(null)
         }
     }
 

@@ -36,4 +36,11 @@
             android:value="@integer/google_play_services_version"/>
     </application>
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT" />
+            <data android:mimeType="image/*" />
+        </intent>
+    </queries>
+
 </manifest>

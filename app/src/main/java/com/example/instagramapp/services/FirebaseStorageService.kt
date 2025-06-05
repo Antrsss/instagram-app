@@ -22,15 +22,30 @@ class FirebaseStorageService @Inject constructor() {
     // Для сторис
     private val storiesRef = storageRef.child("stories")
 
-    suspend fun uploadProfilePhoto(userId: String, uri: Uri): String {
-        val fileRef = profilePhotosRef.child("$userId/${UUID.randomUUID()}")
-        fileRef.putFile(uri).await()
-        return fileRef.downloadUrl.await().toString()
+    // FirebaseStorageService.kt
+    suspend fun uploadProfilePhoto(userId: String, imageUri: Uri): String {
+        return try {
+            val storageRef = FirebaseStorage.getInstance().reference
+            val profileImagesRef = storageRef.child("profile_images/$userId.jpg")
+
+            val uploadTask = profileImagesRef.putFile(imageUri).await()
+            if (uploadTask.task.isSuccessful) {
+                profileImagesRef.downloadUrl.await().toString()
+            } else {
+                throw Exception("Failed to upload profile image")
+            }
+        } catch (e: Exception) {
+            throw Exception("Failed to upload profile photo: ${e.message}")
+        }
     }
 
     suspend fun deleteProfilePhoto(photoUrl: String) {
-        val ref = storage.getReferenceFromUrl(photoUrl)
-        ref.delete().await()
+        try {
+            val storageRef = FirebaseStorage.getInstance().getReferenceFromUrl(photoUrl)
+            storageRef.delete().await()
+        } catch (e: Exception) {
+            throw Exception("Failed to delete profile photo: ${e.message}")
+        }
     }
 
     suspend fun uploadPostImages(userId: String, uris: List<Uri>): List<String> {
