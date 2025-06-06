@@ -99,7 +99,6 @@ fun CreateContentScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
         ) {
-            // Post creation option
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -125,7 +124,6 @@ fun CreateContentScreen(
                 }
             }
 
-            // Story creation option
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -167,7 +165,6 @@ fun CreatePostScreen(
 
     var description by remember { mutableStateOf("") }
 
-    // In CreatePostScreen
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -332,7 +329,6 @@ fun CreateStoryScreen(
     navController: NavController,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val uiState by storiesViewModel.uiState.collectAsState()
     val selectedMedia by storiesViewModel.selectedMedia.collectAsState()
 
@@ -414,39 +410,7 @@ fun CreateStoryScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
                     ) {
-                        // Camera option
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .clickable { showCamera = true },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .border(2.dp, Color.White, CircleShape)
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.AddCircle,
-                                    contentDescription = "Camera",
-                                    tint = Color.White,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                "Create with camera",
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
 
-                        // Gallery option
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
