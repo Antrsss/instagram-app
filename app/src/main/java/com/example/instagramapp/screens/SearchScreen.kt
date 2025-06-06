@@ -16,9 +16,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,11 +35,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.instagramapp.models.Profile
 import com.example.instagramapp.repos.ProfileRepository
 import com.example.instagramapp.viewmodels.AuthViewModel
@@ -67,10 +72,16 @@ fun SearchScreen(
                     viewModel.searchProfiles(it)
                 }
             },
-            onSearch = { /* Можно добавить дополнительную логику */ },
+            onSearch = {  },
             active = false,
             onActiveChange = { },
             modifier = Modifier.fillMaxWidth(),
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search icon"
+                )
+            },
             content = {}
         )
 
@@ -135,17 +146,36 @@ private fun ProfileSearchItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onProfileClick)
-            .padding(vertical = 8.dp),
+            .padding(vertical = 12.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = profile.photoUrl ?: "",
-            contentDescription = "Profile photo",
+        Box(
             modifier = Modifier
-                .size(50.dp)
-                .clip(CircleShape),
-            contentScale = ContentScale.Crop
-        )
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(Color.LightGray, CircleShape)
+        ) {
+            if (profile.photoUrl != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(profile.photoUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Profile photo",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profile placeholder",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    tint = Color.White
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.width(12.dp))
 
@@ -159,4 +189,6 @@ private fun ProfileSearchItem(
             }
         }
     }
+
+    Divider()
 }
