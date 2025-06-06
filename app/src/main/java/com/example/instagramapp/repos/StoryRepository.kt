@@ -16,7 +16,6 @@ class StoryRepository @Inject constructor(
 
     suspend fun createStory(story: Story): Story {
         try {
-            // Загружаем фото в Firebase Storage
             val photoUri = Uri.parse(story.photoUrl)
             val photoUrl = storageService.uploadStory(story.authorUid, photoUri)
 

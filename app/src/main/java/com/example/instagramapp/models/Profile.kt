@@ -7,6 +7,8 @@ data class Profile(
     val userUid: String = "",
     val username: String = "",
     val name: String? = null,
+    val followers: List<String> = emptyList(),
+    val following: List<String> = emptyList(),
     val followersCount: Int = 0,
     val followingCount: Int = 0,
     val photoUrl: String? = null,

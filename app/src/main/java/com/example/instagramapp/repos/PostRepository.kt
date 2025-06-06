@@ -180,6 +180,23 @@ class PostRepository @Inject constructor(
         }
     }
 
+    suspend fun getPostsByUsers(userIds: List<String>): Result<List<Post>> {
+        return try {
+            if (userIds.isEmpty()) return Result.success(emptyList())
+
+            val query = postsCollection
+                .whereIn("authorUid", userIds)
+                .orderBy("creationTime", Query.Direction.DESCENDING)
+                .get()
+                .await()
+
+            val posts = query.documents.mapNotNull { it.toObject(Post::class.java) }
+            Result.success(posts)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun updatePost(updatedPost: Post): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val updateData = mutableMapOf<String, Any>().apply {
@@ -211,12 +228,10 @@ class PostRepository @Inject constructor(
             val isLiked = likeSnapshot.exists()
 
             if (isLiked) {
-                // Удаляем лайк, если он уже существует
                 transaction.delete(likeRef)
                 transaction.update(postRef, "likes", currentLikes - 1)
                 transaction.update(postRef, "likedBy", FieldValue.arrayRemove(userId))
             } else {
-                // Добавляем лайк, если его нет
                 transaction.set(likeRef, mapOf(
                     "postId" to postId,
                     "userId" to userId,

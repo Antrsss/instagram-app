@@ -425,18 +425,6 @@ fun PostActions(
                 text = "$likesCount",
                 style = MaterialTheme.typography.bodyMedium
             )
-            /*IconButton(onClick = onCommentClick) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_comment),
-                    contentDescription = "Комментарии"
-                )
-            }
-            IconButton(onClick = onShareClick) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_share),
-                    contentDescription = "Поделиться"
-                )
-            }*/
         }
     }
 }

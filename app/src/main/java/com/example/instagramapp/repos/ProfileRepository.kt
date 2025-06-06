@@ -109,7 +109,6 @@ class ProfileRepository @Inject constructor(
 
     suspend fun followUser(currentUserUid: String, targetUserUid: String): Result<Unit> {
         return try {
-            // Проверяем, не подписаны ли уже
             if (checkIfFollowing(currentUserUid, targetUserUid)) {
                 return Result.success(Unit)
             }
@@ -118,11 +117,9 @@ class ProfileRepository @Inject constructor(
                 val currentUserRef = profilesCollection.document(currentUserUid)
                 val targetUserRef = profilesCollection.document(targetUserUid)
 
-                // Обновляем счетчики
                 transaction.update(currentUserRef, "followingCount", FieldValue.increment(1))
                 transaction.update(targetUserRef, "followersCount", FieldValue.increment(1))
 
-                // Добавляем в списки
                 transaction.update(currentUserRef, "following", FieldValue.arrayUnion(targetUserUid))
                 transaction.update(targetUserRef, "followers", FieldValue.arrayUnion(currentUserUid))
             }.await()
@@ -154,21 +151,19 @@ class ProfileRepository @Inject constructor(
 
     suspend fun getFollowStatus(currentUserUid: String, targetUserUid: String): Boolean? {
         return try {
-            // 1. Проверяем, есть ли активная подписка
             if (checkIfFollowing(currentUserUid, targetUserUid)) {
                 return true
             }
 
-            // 2. Проверяем, есть ли pending запрос
             val request = firestore.collection("follow_requests")
                 .document("${currentUserUid}_$targetUserUid")
                 .get()
                 .await()
 
             if (request.exists() && request.getString("status") == "pending") {
-                null // Ожидает подтверждения
+                null
             } else {
-                false // Не подписаны
+                false
             }
         } catch (e: Exception) {
             false
@@ -191,23 +186,19 @@ class ProfileRepository @Inject constructor(
                 val currentUserRef = profilesCollection.document(currentUserUid)
                 val targetUserRef = profilesCollection.document(targetUserUid)
 
-                // Обновляем счетчики
                 transaction.update(currentUserRef, "followingCount", FieldValue.increment(-1))
                 transaction.update(targetUserRef, "followersCount", FieldValue.increment(-1))
 
-                // Удаляем из списков
                 transaction.update(currentUserRef, "following", FieldValue.arrayRemove(targetUserUid))
                 transaction.update(targetUserRef, "followers", FieldValue.arrayRemove(currentUserUid))
             }.await()
 
-            // Удаляем запрос на подписку, если был
             try {
                 firestore.collection("follow_requests")
                     .document("${currentUserUid}_$targetUserUid")
                     .delete()
                     .await()
             } catch (e: Exception) {
-                // Игнорируем ошибку, если запроса не было
             }
 
             Result.success(Unit)

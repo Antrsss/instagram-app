@@ -41,6 +41,9 @@ sealed class Screen(val route: String) {
     object CreatePost : Screen("create/post")
     object CreateStory : Screen("create/story")
     object CreateContent : Screen("create/content")
+    object StoryViewer : Screen("storyViewer/{startIndex}") {
+        fun createRoute(startIndex: Int) = "storyViewer/${startIndex}"
+    }
 }
 
 data class BottomNavItem(
@@ -87,7 +90,9 @@ fun InstagramNavigation(
         contentCreationGraph(navController)
 
         composable(Screen.Home.route) {
-            //HomeScreen(navController = navController)
+            HomeScreen(
+                navController = navController,
+            )
         }
         composable(
             route = Screen.Profile.route,
@@ -204,7 +209,6 @@ fun InstagramBottomBar(
                     }
 
                     navController.navigate(finalRoute) {
-                        // Если это экран создания, очищаем бэкстек до главного экрана
                         if (item.route == Screen.Create.route) {
                             popUpTo(navController.graph.startDestinationId)
                         }

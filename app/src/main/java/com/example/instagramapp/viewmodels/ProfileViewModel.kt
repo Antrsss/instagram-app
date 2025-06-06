@@ -106,11 +106,11 @@ class ProfileViewModel @Inject constructor(
             _profileUiState.value = ProfileUiState.Loading
             val photoUrl = storageService.uploadProfilePhoto(userUid, photoUri)
             profileRepository.updateProfilePhoto(userUid, photoUri).getOrThrow()
-            loadProfile(userUid) // Перезагружаем профиль
-            true // Успех
+            loadProfile(userUid)
+            true
         } catch (e: Exception) {
             _profileUiState.value = ProfileUiState.Error(e.message ?: "Failed to update photo")
-            false // Ошибка
+            false
         } finally {
             _profileUiState.value = _profileUiState.value.copyWithMessage(null)
         }
