@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,6 +76,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.instagramapp.models.Post
 import com.example.instagramapp.models.Profile
+import com.example.instagramapp.navigation.Screen
 import com.example.instagramapp.utils.RegisterImagePicker
 import com.example.instagramapp.utils.rememberImagePicker
 import com.example.instagramapp.viewmodels.AuthViewModel
@@ -97,25 +99,26 @@ fun ProfileScreen(
     val posts by profileViewModel.posts.collectAsState()
     val authedUser = authViewModel.currentUser
     val isFollowing by profileViewModel.isFollowing.collectAsState()
+    val followers by profileViewModel.followers.collectAsState()
+    val following by profileViewModel.following.collectAsState()
 
     LaunchedEffect(userId) {
         postsViewModel.loadUserPosts(userId)
         profileViewModel.checkFollowStatus(authedUser!!.uid, userId)
-    }
-    LaunchedEffect(posts) {
-        Log.d("ProfileScreen", "Posts loaded: ${posts.size}")
-        posts.forEach { post ->
-            Log.d("ProfileScreen", "Post ${post.postUuid} images: ${post.imageUrls}")
-        }
+        profileViewModel.loadFollowers(userId)
+        profileViewModel.loadFollowing(userId)
     }
 
     val context = LocalContext.current
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Posts")
+    val tabs = listOf("Posts", "Followers", "Following")
 
     var showEditDialog by remember { mutableStateOf(false) }
     var showImagePicker by remember { mutableStateOf(false) }
+    var showFollowersDialog by remember { mutableStateOf(false) }
+    var showFollowingDialog by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
     val imagePicker = rememberImagePicker()
     var isImageLoading by remember { mutableStateOf(false) }
 
@@ -165,7 +168,11 @@ fun ProfileScreen(
         topBar = {
             ProfileTopBar(
                 username = (uiState as? ProfileUiState.Loaded)?.profile?.username ?: "",
-                onSettingsClick = { /* Открыть меню настроек */ }
+                onSettingsClick = {
+                    if (userId == authedUser?.uid) {
+                        showLogoutDialog = true
+                    }
+                }
             )
         }
     ) { paddingValues ->
@@ -196,7 +203,8 @@ fun ProfileScreen(
                                 followingCount = profile.followingCount,
                                 onEditProfileClick = {
                                     Log.d("PostsVM", "EditBtnClicked")
-                                    showEditDialog = true },
+                                    showEditDialog = true
+                                },
                                 onFollowBtnClick = {
                                     authedUser?.uid?.let { currentUserUid ->
                                         profileViewModel.followUser(currentUserUid, userId)
@@ -208,6 +216,8 @@ fun ProfileScreen(
                                     }
                                 },
                                 onPhotoClick = { showImagePicker = true },
+                                onFollowersClick = { showFollowersDialog = true },
+                                onFollowingClick = { showFollowingDialog = true },
                                 isCurrentUser = (userId == authedUser?.uid),
                                 isFollowing = isFollowing
                             )
@@ -228,29 +238,85 @@ fun ProfileScreen(
                         }
                     }
 
-                    if (posts.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "No posts yet",
-                                    color = Color.Gray
-                                )
+                    when (selectedTabIndex) {
+                        0 -> { // Posts tab
+                            if (posts.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "No posts yet",
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                            } else {
+                                item {
+                                    PostsGrid(
+                                        posts = posts,
+                                        navController = navController,
+                                        onPostCreated = {
+                                            profileViewModel.refreshPosts(userId)
+                                        }
+                                    )
+                                }
                             }
                         }
-                    } else {
-                        item {
-                            PostsGrid(
-                                posts = posts,
-                                navController = navController,
-                                onPostCreated = {
-                                    profileViewModel.refreshPosts(userId)
+                        1 -> { // Followers tab
+                            if (followers.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "No followers yet",
+                                            color = Color.Gray
+                                        )
+                                    }
                                 }
-                            )
+                            } else {
+                                items(followers) { follower ->
+                                    ProfileSearchItem(
+                                        profile = follower,
+                                        onProfileClick = {
+                                            navController.navigate("profile/${follower.userUid}")
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        2 -> { // Following tab
+                            if (following.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "Not following anyone yet",
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                            } else {
+                                items(following) { followingUser ->
+                                    ProfileSearchItem(
+                                        profile = followingUser,
+                                        onProfileClick = {
+                                            navController.navigate("profile/${followingUser.userUid}")
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -280,6 +346,243 @@ fun ProfileScreen(
                 }
             )
         }
+    }
+
+    if (showFollowersDialog) {
+        FollowListDialog(
+            title = "Followers",
+            profiles = followers,
+            onDismiss = { showFollowersDialog = false },
+            onProfileClick = { profile ->
+                navController.navigate("profile/${profile.userUid}")
+                showFollowersDialog = false
+            }
+        )
+    }
+
+    if (showFollowingDialog) {
+        FollowListDialog(
+            title = "Following",
+            profiles = following,
+            onDismiss = { showFollowingDialog = false },
+            onProfileClick = { profile ->
+                navController.navigate("profile/${profile.userUid}")
+                showFollowingDialog = false
+            }
+        )
+    }
+
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Logout") },
+            text = { Text("Are you sure you want to logout?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        authViewModel.signOut()
+                        showLogoutDialog = false
+                        navController.navigate(Screen.Auth.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                ) {
+                    Text("Logout")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun FollowListDialog(
+    title: String,
+    profiles: List<Profile>,
+    onDismiss: () -> Unit,
+    onProfileClick: (Profile) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                if (profiles.isEmpty()) {
+                    Text(
+                        text = "No $title yet",
+                        modifier = Modifier.padding(16.dp)
+                    )
+                } else {
+                    profiles.forEach { profile ->
+                        ProfileSearchItem(
+                            profile = profile,
+                            onProfileClick = { onProfileClick(profile) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+private fun ProfileHeader(
+    profile: Profile,
+    postCount: Int,
+    followerCount: Int,
+    followingCount: Int,
+    onEditProfileClick: () -> Unit,
+    onFollowBtnClick: () -> Unit,
+    onUnfollowBtnClicked: () -> Unit,
+    onPhotoClick: () -> Unit,
+    onFollowersClick: () -> Unit,
+    onFollowingClick: () -> Unit,
+    isCurrentUser: Boolean,
+    isFollowing: Boolean?,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(90.dp)
+                .clip(CircleShape)
+                .clickable(
+                    enabled = isCurrentUser,
+                    onClick = onPhotoClick
+                )
+                .background(Color.LightGray, CircleShape)
+        ) {
+            if (profile.photoUrl != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(profile.photoUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Profile photo",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profile placeholder",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    tint = Color.White
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            ProfileStatItem(
+                count = postCount,
+                label = "Posts",
+                onClick = {}
+            )
+            ProfileStatItem(
+                count = followerCount,
+                label = "Followers",
+                onClick = onFollowersClick
+            )
+            ProfileStatItem(
+                count = followingCount,
+                label = "Following",
+                onClick = onFollowingClick
+            )
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Button(
+            onClick = {
+                when {
+                    isCurrentUser -> onEditProfileClick()
+                    isFollowing == true -> onUnfollowBtnClicked()
+                    isFollowing == null -> {} // Уже отправили запрос
+                    else -> onFollowBtnClick() // Не подписаны
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp),
+            shape = RoundedCornerShape(6.dp),
+            colors = when {
+                isCurrentUser -> ButtonDefaults.buttonColors(
+                    containerColor = colorScheme.surfaceVariant,
+                    contentColor = colorScheme.onSurface
+                )
+                isFollowing == true -> ButtonDefaults.buttonColors(
+                    containerColor = colorScheme.surfaceVariant,
+                    contentColor = colorScheme.onSurface
+                )
+                isFollowing == null -> ButtonDefaults.buttonColors(
+                    containerColor = Color.Gray,
+                    contentColor = Color.White
+                )
+                else -> ButtonDefaults.buttonColors(
+                    containerColor = Color.Green,
+                    contentColor = Color.White
+                )
+            }
+        ) {
+            Text(
+                text = when {
+                    isCurrentUser -> "Edit Profile"
+                    isFollowing == true -> "Following"
+                    isFollowing == null -> "Requested"
+                    profile.isPrivate -> "Request"
+                    else -> "Follow"
+                },
+                fontSize = 14.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileStatItem(count: Int, label: String, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Text(
+            text = count.toString(),
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp
+        )
+        Text(
+            text = label,
+            fontSize = 12.sp
+        )
     }
 }
 

@@ -32,6 +32,12 @@ class ProfileViewModel @Inject constructor(
     private val _isFollowing = MutableStateFlow<Boolean?>(null)
     val isFollowing: StateFlow<Boolean?> get() = _isFollowing
 
+    private val _followers = MutableStateFlow<List<Profile>>(emptyList())
+    val followers: StateFlow<List<Profile>> = _followers.asStateFlow()
+
+    private val _following = MutableStateFlow<List<Profile>>(emptyList())
+    val following: StateFlow<List<Profile>> = _following.asStateFlow()
+
     fun loadProfile(userUid: String) {
         _profileUiState.value = ProfileUiState.Loading
         viewModelScope.launch {
@@ -48,6 +54,48 @@ class ProfileViewModel @Inject constructor(
             } catch (e: Exception) {
                 _profileUiState.value = ProfileUiState.Error(
                     e.message ?: "Failed to load data"
+                )
+            }
+        }
+    }
+
+    suspend fun loadFollowers(userId: String) {
+        viewModelScope.launch {
+            try {
+                val followerIds = profileRepository.getFollowerIds(userId)
+                val followersList = mutableListOf<Profile>()
+
+                followerIds.forEach { id ->
+                    profileRepository.getProfile(id).onSuccess { profile ->
+                        followersList.add(profile)
+                    }
+                }
+
+                _followers.value = followersList
+            } catch (e: Exception) {
+                _profileUiState.value = ProfileUiState.Error(
+                    e.message ?: "Failed to load followers"
+                )
+            }
+        }
+    }
+
+    suspend fun loadFollowing(userId: String) {
+        viewModelScope.launch {
+            try {
+                val followingIds = profileRepository.getFollowingIds(userId)
+                val followingList = mutableListOf<Profile>()
+
+                followingIds.forEach { id ->
+                    profileRepository.getProfile(id).onSuccess { profile ->
+                        followingList.add(profile)
+                    }
+                }
+
+                _following.value = followingList
+            } catch (e: Exception) {
+                _profileUiState.value = ProfileUiState.Error(
+                    e.message ?: "Failed to load following"
                 )
             }
         }

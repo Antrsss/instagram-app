@@ -138,7 +138,7 @@ private fun SearchResultsList(
 }
 
 @Composable
-private fun ProfileSearchItem(
+fun ProfileSearchItem(
     profile: Profile,
     onProfileClick: () -> Unit
 ) {

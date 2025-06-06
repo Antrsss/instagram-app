@@ -206,4 +206,22 @@ class ProfileRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun getFollowerIds(userId: String): List<String> {
+        return try {
+            val snapshot = profilesCollection.document(userId).get().await()
+            snapshot.get("followers") as? List<String> ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun getFollowingIds(userId: String): List<String> {
+        return try {
+            val snapshot = profilesCollection.document(userId).get().await()
+            snapshot.get("following") as? List<String> ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }
