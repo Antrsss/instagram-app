@@ -150,36 +150,6 @@ class PostRepository @Inject constructor(
             .forEach { it.reference.delete().await() }
     }
 
-    suspend fun likePost(postUuid: String, userId: String): Result<Int> = withContext(Dispatchers.IO) {
-        try {
-            val postRef = postsCollection.document(postUuid)
-            val likeDocRef = likesCollection.document("${postUuid}_$userId")
-
-            firestore.runTransaction { transaction ->
-                val postSnapshot = transaction.get(postRef)
-                val post = postSnapshot.toObject<Post>() ?: throw Exception("Post not found")
-
-                val likeSnapshot = transaction.get(likeDocRef)
-                val newLikesCount = if (likeSnapshot.exists()) {
-                    transaction.delete(likeDocRef)
-                    post.likes - 1
-                } else {
-                    transaction.set(likeDocRef, mapOf(
-                        "postUuid" to postUuid,
-                        "userId" to userId,
-                        "timestamp" to FieldValue.serverTimestamp()
-                    ))
-                    post.likes + 1
-                }
-
-                transaction.update(postRef, "likes", newLikesCount)
-                newLikesCount
-            }.await().let { Result.success(it) }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
     suspend fun getPostsByUsers(userIds: List<String>): Result<List<Post>> {
         return try {
             if (userIds.isEmpty()) return Result.success(emptyList())
@@ -241,6 +211,42 @@ class PostRepository @Inject constructor(
                 transaction.update(postRef, "likedBy", FieldValue.arrayUnion(userId))
             }
         }.await()
+    }
+
+    suspend fun likePost(postId: String, userId: String) {
+        try {
+            firestore.runTransaction { transaction ->
+                val postRef = postsCollection.document(postId)
+                val post = transaction.get(postRef).toObject(Post::class.java)
+
+                if (post != null && !post.likedBy.contains(userId)) {
+                    transaction.update(postRef,
+                        "likes", FieldValue.increment(1),
+                        "likedBy", FieldValue.arrayUnion(userId)
+                    )
+                }
+            }.await()
+        } catch (e: Exception) {
+            throw Exception("Failed to like post", e)
+        }
+    }
+
+    suspend fun unlikePost(postId: String, userId: String) {
+        try {
+            firestore.runTransaction { transaction ->
+                val postRef = postsCollection.document(postId)
+                val post = transaction.get(postRef).toObject(Post::class.java)
+
+                if (post != null && post.likedBy.contains(userId)) {
+                    transaction.update(postRef,
+                        "likes", FieldValue.increment(-1),
+                        "likedBy", FieldValue.arrayRemove(userId)
+                    )
+                }
+            }.await()
+        } catch (e: Exception) {
+            throw Exception("Failed to unlike post", e)
+        }
     }
 
     suspend fun saveToBookmarks(postUuid: String, userId: String): Result<Unit> = withContext(Dispatchers.IO) {

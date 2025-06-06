@@ -19,6 +19,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.instagramapp.models.Story
 import com.example.instagramapp.screens.*
 import com.example.instagramapp.viewmodels.AuthViewModel
 import com.example.instagramapp.viewmodels.PostsViewModel
@@ -92,6 +93,23 @@ fun InstagramNavigation(
         composable(Screen.Home.route) {
             HomeScreen(
                 navController = navController,
+            )
+        }
+        composable(
+            route = Screen.StoryViewer.route,
+            arguments = listOf(navArgument("startIndex") {
+                type = NavType.IntType
+            })
+        ) { backStackEntry ->
+            val stories = navController.previousBackStackEntry
+                ?.savedStateHandle
+                ?.get<List<Story>>("stories") ?: emptyList()
+            val startIndex = backStackEntry.arguments?.getInt("startIndex") ?: 0
+
+            StoryViewerScreen(
+                stories = stories,
+                startIndex = startIndex,
+                onBack = { navController.popBackStack() }
             )
         }
         composable(

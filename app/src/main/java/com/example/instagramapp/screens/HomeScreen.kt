@@ -23,6 +23,7 @@ import com.example.instagramapp.components.StoryCircle
 import com.example.instagramapp.models.Profile
 import com.example.instagramapp.viewmodels.HomeViewModel
 import com.example.instagramapp.models.Story
+import com.example.instagramapp.navigation.Screen
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,13 +51,15 @@ fun HomeScreen(
             else -> ContentScreen(
                 state = state,
                 onStoryClick = { stories, startIndex ->
-                    navController.currentBackStackEntry
-                        ?.savedStateHandle
-                        ?.set("stories", stories)
-                    navController.navigate("storyViewer/$startIndex")
+                    navController.currentBackStackEntry?.let { entry ->
+                        entry.savedStateHandle.set("stories", stories)
+                        navController.navigate(Screen.StoryViewer.createRoute(startIndex)) {
+                            launchSingleTop = true
+                        }
+                    }
                 },
                 onProfileClick = { userId ->
-                    navController.navigate("profile/$userId")
+                    navController.navigate(Screen.Profile.createRoute(userId))
                 },
                 onLikeClick = { postId ->
                     homeViewModel.likePost(postId)
@@ -108,7 +111,6 @@ fun StoriesRow(
 ) {
     val storiesByAuthor = stories.groupBy { it.authorUid }
 
-    // Если нет историй, показываем заглушку
     if (profiles.isEmpty()) {
         Box(
             modifier = modifier

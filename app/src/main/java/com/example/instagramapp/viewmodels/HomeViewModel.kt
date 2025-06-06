@@ -113,7 +113,10 @@ class HomeViewModel @Inject constructor(
             emptyList()
         } else {
             try {
-                postRepository.getPostsByUsers(followingUserIds).getOrThrow()
+                val currentUserId = userRepository.currentUser?.uid ?: ""
+                postRepository.getPostsByUsers(followingUserIds).getOrThrow().map { post ->
+                    post.copy(likedByUser = post.likedBy.contains(currentUserId))
+                }
             } catch (e: Exception) {
                 Log.e("HomeVM", "Error loading posts", e)
                 emptyList()
@@ -138,36 +141,44 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val currentUserId = userRepository.currentUser?.uid ?: run {
-                    _state.update { currentState ->
-                        currentState.copy(error = "User not authenticated")
-                    }
+                    _state.update { it.copy(error = "User not authenticated") }
                     return@launch
                 }
 
+                // Находим пост в текущем состоянии
                 val currentPosts = _state.value.posts
                 val postIndex = currentPosts.indexOfFirst { it.postUuid == postId }
                 if (postIndex == -1) return@launch
 
                 val post = currentPosts[postIndex]
-                val isLiked = post.likedByUser
+                val alreadyLiked = post.likedBy.contains(currentUserId)
 
+                // Оптимистичное обновление UI
                 _state.update { currentState ->
                     val updatedPosts = currentState.posts.toMutableList().apply {
                         set(postIndex, post.copy(
-                            likes = if (isLiked) post.likes - 1 else post.likes + 1,
-                            likedByUser = !isLiked
+                            likes = if (alreadyLiked) post.likes - 1 else post.likes + 1,
+                            likedBy = if (alreadyLiked) {
+                                post.likedBy - currentUserId
+                            } else {
+                                post.likedBy + currentUserId
+                            },
+                            likedByUser = !alreadyLiked
                         ))
                     }
                     currentState.copy(posts = updatedPosts)
                 }
 
-                postRepository.likePost(postId, currentUserId)
+                // Вызываем репозиторий для фактического обновления
+                if (alreadyLiked) {
+                    postRepository.unlikePost(postId, currentUserId)
+                } else {
+                    postRepository.likePost(postId, currentUserId)
+                }
 
             } catch (e: Exception) {
                 Log.e("HomeVM", "Error liking post", e)
-                _state.update { currentState ->
-                    currentState.copy(error = e.message ?: "Failed to like post")
-                }
+                _state.update { it.copy(error = e.message ?: "Failed to like post") }
                 loadData()
             }
         }
