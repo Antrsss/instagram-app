@@ -171,7 +171,7 @@ private fun ProfileSearchItem(
                     contentDescription = "Profile placeholder",
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp),
+                        .padding(8.dp),
                     tint = Color.White
                 )
             }

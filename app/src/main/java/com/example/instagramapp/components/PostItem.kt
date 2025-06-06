@@ -24,9 +24,12 @@ import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import coil.request.ImageRequest
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -47,16 +50,34 @@ fun PostItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AsyncImage(
-                    model = profile.photoUrl ?: R.drawable.ic_profile_placeholder,
-                    contentDescription = "Profile photo",
+                Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(40.dp)
+                        .background(Color.LightGray, CircleShape)
                         .clip(CircleShape)
                         .clickable { onProfileClick(profile.userUid) },
-                    contentScale = ContentScale.Crop,
-                    error = painterResource(R.drawable.ic_profile_placeholder)
-                )
+                ) {
+                    if (profile.photoUrl != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(profile.photoUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Profile photo",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Profile placeholder",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(4.dp),
+                            tint = Color.White
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = profile.username,
